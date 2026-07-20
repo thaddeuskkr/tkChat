@@ -85,6 +85,19 @@ class ChatRouterTest {
     }
 
     @Test
+    void clearsRateLimitStateWhenAPlayerLeaves() throws Exception {
+        ChatRouter router = router((sender, permission, bypassPermission, containsLink) ->
+                CompletableFuture.completedFuture(AccessDecision.allow("", "")), 1);
+
+        assertInstanceOf(RouteDecision.Approved.class,
+                router.routeChannel(sender(), "global", "first").toCompletableFuture().join());
+        router.remove(ALICE);
+
+        assertInstanceOf(RouteDecision.Approved.class,
+                router.routeChannel(sender(), "global", "after reconnect").toCompletableFuture().join());
+    }
+
+    @Test
     void channelAliasesResolveToCanonicalChannel() {
         ChannelDefinition channel = new ChannelDefinition(
                 "global", "Global", ChannelScope.GLOBAL, "send", "receive", "bypass",

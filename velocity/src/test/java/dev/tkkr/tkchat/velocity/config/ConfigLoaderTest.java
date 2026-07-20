@@ -29,7 +29,12 @@ class ConfigLoaderTest {
         assertEquals(10_000, config.mongodb.readTimeoutMillis);
         assertEquals(15_000, config.mongodb.operationTimeoutMillis);
         assertEquals(4, config.mongodb.workerThreads);
+        assertEquals(256, config.mongodb.maxQueuedOperations);
+        assertEquals(8, config.chat.maxPendingMessagesPerSender);
+        assertEquals(5_000, config.chat.maxMessageAgeMillis);
+        assertEquals(30_000, config.chat.maxDeliveryAgeMillis);
         assertTrue(yaml.contains("operation-timeout-millis: 15000"));
+        assertTrue(yaml.contains("max-queued-operations: 256"));
     }
 
     @Test

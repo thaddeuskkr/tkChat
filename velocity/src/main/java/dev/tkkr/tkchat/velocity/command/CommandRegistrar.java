@@ -135,7 +135,7 @@ public final class CommandRegistrar {
         add(specs, rootChildren, "ignore", "ignore", Permissions.command("ignore"),
                 new IgnoreCommand(proxy, states), "block");
         add(specs, rootChildren, "dmtoggle", "dmtoggle", Permissions.command("dmtoggle"),
-                new DirectMessagesToggleCommand(repository, config.defaultChannel));
+                new DirectMessagesToggleCommand(states));
         add(specs, rootChildren, "broadcast", "broadcast", Permissions.command("broadcast"),
                 new BroadcastCommand(networkMessages, config.chat), "bc");
         add(specs, rootChildren, "clearchat", "clearchat", Permissions.command("clearchat"),

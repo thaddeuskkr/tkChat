@@ -35,7 +35,7 @@ tasks {
     }
     shadowJar {
         archiveClassifier.set("")
-        archiveFileName.set("tkChat-Velocity-${project.version}.jar")
+        archiveFileName.set("tkChat-Velocity.jar")
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
         mergeServiceFiles()
     }

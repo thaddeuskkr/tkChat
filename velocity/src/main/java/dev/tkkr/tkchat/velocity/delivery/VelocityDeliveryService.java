@@ -28,10 +28,19 @@ import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 
 import java.time.Clock;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 public final class VelocityDeliveryService {
     private static final Pattern URL = Pattern.compile("(?i)\\b(?:https?://|www\\.)[^\\s<>]+");
+
+    private record PreparedMessage(Component content, Component prefix, Component suffix) {
+    }
 
     private final ProxyServer proxy;
     private volatile ChannelRegistry channels;
@@ -45,6 +54,8 @@ public final class VelocityDeliveryService {
     private volatile int clearLines;
     private final MiniMessage miniMessage = MiniMessage.miniMessage();
     private final RecentMessageIds recentIds = new RecentMessageIds(Duration.ofMinutes(2), Clock.systemUTC());
+    private final Clock clock = Clock.systemUTC();
+    private volatile Duration maxDeliveryAge;
 
     public VelocityDeliveryService(
             ProxyServer proxy,
@@ -56,7 +67,8 @@ public final class VelocityDeliveryService {
             PlayerFormattingService playerFormatting,
             PlayerStateService states,
             SocialSpyService spies,
-            int clearLines
+            int clearLines,
+            Duration maxDeliveryAge
     ) {
         this.proxy = proxy;
         this.channels = channels;
@@ -68,6 +80,7 @@ public final class VelocityDeliveryService {
         this.states = states;
         this.spies = spies;
         this.clearLines = clearLines;
+        this.maxDeliveryAge = maxDeliveryAge;
     }
 
     public void reconfigure(
@@ -75,34 +88,84 @@ public final class VelocityDeliveryService {
             AppConfig.Formats formats,
             AppConfig.Mentions mentions,
             AppConfig.ItemLinks itemLinks,
-            int clearLines
+            int clearLines,
+            Duration maxDeliveryAge
     ) {
         this.channels = channels;
         this.formats = formats;
         this.mentions = mentions;
         this.itemLinks = itemLinks;
         this.clearLines = clearLines;
+        this.maxDeliveryAge = maxDeliveryAge;
     }
 
     public void deliver(ApprovedMessage message) {
+        if (message.createdAt().isBefore(clock.instant().minus(maxDeliveryAge))) {
+            return;
+        }
         if (!recentIds.first(message.messageId())) {
+            return;
+        }
+        PreparedMessage prepared = prepare(message);
+        Map<String, Component> rendered = new HashMap<>();
+        if (isAddressed(message)) {
+            deliverAddressed(message, prepared, rendered);
             return;
         }
         for (Player player : proxy.getAllPlayers()) {
             boolean normalRecipient = shouldReceive(player, message);
             if (message.routeKind() == RouteKind.CHAT_CLEAR && normalRecipient) {
-                if (!access.hasPermission(player, Permissions.BYPASS_CHAT_CLEAR)) {
-                    for (int line = 0; line < clearLines; line++) {
-                        player.sendMessage(Component.empty());
-                    }
-                }
-                player.sendMessage(render(message, player));
+                clearAndSend(player, message, prepared, rendered);
             } else if (normalRecipient) {
-                player.sendMessage(render(message, player));
+                player.sendMessage(render(message, player, prepared, rendered));
             } else if (shouldSpy(player, message)) {
-                player.sendMessage(renderSpy(message, player));
+                player.sendMessage(renderSpy(message, player, prepared, rendered));
             }
         }
+    }
+
+    private void deliverAddressed(
+            ApprovedMessage message,
+            PreparedMessage prepared,
+            Map<String, Component> rendered
+    ) {
+        Set<UUID> delivered = new HashSet<>();
+        for (UUID recipientId : message.recipients()) {
+            proxy.getPlayer(recipientId).ifPresent(player -> {
+                if (shouldReceive(player, message)) {
+                    player.sendMessage(render(message, player, prepared, rendered));
+                    delivered.add(recipientId);
+                }
+            });
+        }
+        for (UUID spyId : spies.enabledPlayers()) {
+            if (delivered.contains(spyId)) {
+                continue;
+            }
+            proxy.getPlayer(spyId).ifPresent(player -> {
+                if (shouldSpy(player, message)) {
+                    player.sendMessage(renderSpy(message, player, prepared, rendered));
+                }
+            });
+        }
+    }
+
+    private void clearAndSend(
+            Player player,
+            ApprovedMessage message,
+            PreparedMessage prepared,
+            Map<String, Component> rendered
+    ) {
+        if (!access.hasPermission(player, Permissions.BYPASS_CHAT_CLEAR)) {
+            for (int line = 0; line < clearLines; line++) {
+                player.sendMessage(Component.empty());
+            }
+        }
+        player.sendMessage(render(message, player, prepared, rendered));
+    }
+
+    private static boolean isAddressed(ApprovedMessage message) {
+        return message.routeKind() == RouteKind.DIRECT || message.routeKind() == RouteKind.GROUP;
     }
 
     private boolean shouldReceive(Player player, ApprovedMessage message) {
@@ -157,7 +220,12 @@ public final class VelocityDeliveryService {
                 && access.hasPermission(player, Permissions.command("socialspy"));
     }
 
-    private Component render(ApprovedMessage message, Player viewer) {
+    private Component render(
+            ApprovedMessage message,
+            Player viewer,
+            PreparedMessage prepared,
+            Map<String, Component> rendered
+    ) {
         String template;
         if (message.routeKind() == RouteKind.DIRECT) {
             template = viewer.getUniqueId().equals(message.senderId())
@@ -172,23 +240,54 @@ public final class VelocityDeliveryService {
         } else {
             template = channels.find(message.channelId()).map(ChannelDefinition::format).orElse("<message>");
         }
-        return renderTemplate(template, message, viewer);
+        return renderTemplate(template, message, viewer, prepared, rendered);
     }
 
-    private Component renderSpy(ApprovedMessage message, Player viewer) {
-        return renderTemplate(formats.socialSpy, message, viewer);
+    private Component renderSpy(
+            ApprovedMessage message,
+            Player viewer,
+            PreparedMessage prepared,
+            Map<String, Component> rendered
+    ) {
+        return renderTemplate(formats.socialSpy, message, viewer, prepared, rendered);
     }
 
-    private Component renderTemplate(String template, ApprovedMessage message, Player viewer) {
-        Component content = mention(linkify(linkItems(
-                playerFormatting.render(message.content(), message.formatting()), message.itemLink())),
-                message, viewer);
-        Component prefix = trustedMeta(message.senderPrefix());
-        Component suffix = trustedMeta(message.senderSuffix());
+    private PreparedMessage prepare(ApprovedMessage message) {
+        Component content = linkify(linkItems(
+                playerFormatting.render(message.content(), message.formatting()), message.itemLink()));
+        return new PreparedMessage(
+                content, trustedMeta(message.senderPrefix()), trustedMeta(message.senderSuffix()));
+    }
+
+    private Component renderTemplate(
+            String template,
+            ApprovedMessage message,
+            Player viewer,
+            PreparedMessage prepared,
+            Map<String, Component> rendered
+    ) {
+        AppConfig.Mentions mentionConfig = mentions;
+        boolean viewerSpecific = mentionConfig.enabled
+                && message.content().toLowerCase(Locale.ROOT)
+                .contains(mentionConfig.prefix.toLowerCase(Locale.ROOT));
+        if (!viewerSpecific) {
+            return rendered.computeIfAbsent(template,
+                    ignored -> deserializeTemplate(template, message, prepared.content(), prepared));
+        }
+        Component content = mention(prepared.content(), message, viewer);
+        return deserializeTemplate(template, message, content, prepared);
+    }
+
+    private Component deserializeTemplate(
+            String template,
+            ApprovedMessage message,
+            Component content,
+            PreparedMessage prepared
+    ) {
         TagResolver placeholders = TagResolver.builder()
-                .resolver(Placeholder.component("prefix", prefix))
+                .resolver(Placeholder.component("prefix", prepared.prefix()))
                 .resolver(Placeholder.unparsed("name", message.senderName()))
-                .resolver(Placeholder.component("suffix", suffix))
+                .resolver(Placeholder.component("suffix", prepared.suffix()))
                 .resolver(Placeholder.unparsed("target", message.routeDisplayName()))
                 .resolver(Placeholder.component("message", content))
                 .build();

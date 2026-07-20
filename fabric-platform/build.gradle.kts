@@ -77,11 +77,11 @@ tasks {
     }
     if (modernMinecraft) {
         jar {
-            archiveFileName.set("tkChat-Fabric-$minecraftVersion-$artifactVersion.jar")
+            archiveFileName.set("tkChat-Fabric-$minecraftVersion.jar")
         }
     } else {
         named<RemapJarTask>("remapJar") {
-            archiveFileName.set("tkChat-Fabric-$minecraftVersion-$artifactVersion.jar")
+            archiveFileName.set("tkChat-Fabric-$minecraftVersion.jar")
         }
     }
 }

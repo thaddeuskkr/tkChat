@@ -40,8 +40,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static com.mongodb.client.model.Filters.and;
@@ -71,8 +73,14 @@ public final class MongoSocialRepository implements SocialRepository {
 
     public MongoSocialRepository(AppConfig.MongoDb config, String defaultChannel) {
         this.defaultChannel = defaultChannel;
-        this.executor = Executors.newFixedThreadPool(config.workerThreads,
-                Thread.ofPlatform().name("tkchat-mongodb-", 0).factory());
+        this.executor = new ThreadPoolExecutor(
+                config.workerThreads,
+                config.workerThreads,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(config.maxQueuedOperations),
+                Thread.ofPlatform().name("tkchat-mongodb-", 0).factory(),
+                new ThreadPoolExecutor.AbortPolicy());
         MongoClientSettings clientSettings = MongoClientSettings.builder()
                 .applyConnectionString(new ConnectionString(config.connectionString))
                 .applyToClusterSettings(builder -> builder.serverSelectionTimeout(
@@ -444,18 +452,28 @@ public final class MongoSocialRepository implements SocialRepository {
     }
 
     private <T> CompletionStage<T> supply(java.util.function.Supplier<T> supplier) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                return supplier.get();
-            } catch (CompletionException error) {
-                throw error;
-            } catch (RuntimeException error) {
-                throw new CompletionException(error);
-            }
-        }, executor);
+        try {
+            return CompletableFuture.supplyAsync(() -> {
+                try {
+                    return supplier.get();
+                } catch (CompletionException error) {
+                    throw error;
+                } catch (RuntimeException error) {
+                    throw new CompletionException(error);
+                }
+            }, executor);
+        } catch (RejectedExecutionException error) {
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "MongoDB work queue is full", error));
+        }
     }
 
     private CompletionStage<Void> run(Runnable runnable) {
-        return CompletableFuture.runAsync(runnable, executor);
+        try {
+            return CompletableFuture.runAsync(runnable, executor);
+        } catch (RejectedExecutionException error) {
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "MongoDB work queue is full", error));
+        }
     }
 }

@@ -8,6 +8,11 @@ chat:
   rate-limit-messages: 5
   rate-limit-window-millis: 5000
   clear-lines: 50
+  # Bounds per-player work during a storage or moderation slowdown.
+  max-pending-messages-per-sender: 8
+  max-message-age-millis: 5000
+  # Discard delayed transport messages rather than replaying old chat.
+  max-delivery-age-millis: 30000
 
 mentions:
   enabled: true
@@ -36,6 +41,7 @@ mongodb:
   read-timeout-millis: 10000
   operation-timeout-millis: 15000
   worker-threads: 4
+  max-queued-operations: 256
 
 rabbitmq:
   # A single Velocity process delivers locally and does not need RabbitMQ.

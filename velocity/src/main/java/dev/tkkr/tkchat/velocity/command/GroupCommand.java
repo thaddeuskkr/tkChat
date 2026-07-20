@@ -124,7 +124,7 @@ public final class GroupCommand implements SimpleCommand {
                         sendFailure(player, error);
                         return;
                     }
-                    states.setGroupMembership(player.getUniqueId(), group);
+                    states.setGroupMembership(player.getUniqueId(), group, GroupRole.OWNER);
                     player.sendMessage(VelocityChatService.success("Created "
                                     + visibility.name().toLowerCase(Locale.ROOT) + " group " + group.name() + ".")
                             .append(Component.space()).append(switchButton(group)));
@@ -207,7 +207,7 @@ public final class GroupCommand implements SimpleCommand {
             sendFailure(player, error);
             return;
         }
-        states.setGroupMembership(player.getUniqueId(), group);
+        states.setGroupMembership(player.getUniqueId(), group, GroupRole.MEMBER);
         player.sendMessage(VelocityChatService.success("Joined " + group.name() + ".")
                 .append(Component.space()).append(switchButton(group)));
     }

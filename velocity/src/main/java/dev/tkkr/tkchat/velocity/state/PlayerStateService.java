@@ -1,7 +1,10 @@
 package dev.tkkr.tkchat.velocity.state;
 
 import dev.tkkr.tkchat.core.model.Group;
+import dev.tkkr.tkchat.core.model.GroupMembership;
+import dev.tkkr.tkchat.core.model.GroupRole;
 import dev.tkkr.tkchat.core.model.PlayerSettings;
+import dev.tkkr.tkchat.core.service.ChatStateProvider;
 import dev.tkkr.tkchat.core.service.ChannelRegistry;
 import dev.tkkr.tkchat.core.service.GroupChannels;
 import dev.tkkr.tkchat.core.service.SocialRepository;
@@ -14,15 +17,21 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class PlayerStateService {
-    private record Loaded(PlayerSettings settings, Optional<Group> group, Set<UUID> ignoredPlayers) {
+public final class PlayerStateService implements ChatStateProvider {
+    private record Loaded(
+            PlayerSettings settings,
+            Optional<GroupMembership> membership,
+            Set<UUID> ignoredPlayers,
+            Set<UUID> groupMembers
+    ) {
     }
 
     private final SocialRepository repository;
     private volatile ChannelRegistry channels;
     private volatile String defaultChannel;
     private final Map<UUID, PlayerSettings> cache = new ConcurrentHashMap<>();
-    private final Map<UUID, Group> groupCache = new ConcurrentHashMap<>();
+    private final Map<UUID, GroupMembership> groupCache = new ConcurrentHashMap<>();
+    private final Map<UUID, Set<UUID>> groupMembersCache = new ConcurrentHashMap<>();
     private final Map<UUID, Set<UUID>> ignoreCache = new ConcurrentHashMap<>();
 
     public PlayerStateService(SocialRepository repository, ChannelRegistry channels, String defaultChannel) {
@@ -39,9 +48,9 @@ public final class PlayerStateService {
         java.util.ArrayList<CompletableFuture<Void>> repairs = new java.util.ArrayList<>();
         cache.forEach((playerId, settings) -> {
             boolean staticChannel = channels.find(settings.activeChannel()).isPresent();
-            Group group = groupCache.get(playerId);
-            boolean validGroupChannel = group != null
-                    && GroupChannels.id(group.id()).equals(settings.activeChannel());
+            GroupMembership membership = groupCache.get(playerId);
+            boolean validGroupChannel = membership != null
+                    && GroupChannels.id(membership.group().id()).equals(settings.activeChannel());
             if (staticChannel || validGroupChannel) {
                 return;
             }
@@ -54,22 +63,36 @@ public final class PlayerStateService {
     }
 
     public CompletionStage<PlayerSettings> load(UUID playerId) {
-        CompletionStage<Loaded> loadedStage = repository.settings(playerId, defaultChannel)
-                .thenCombine(repository.groupForMember(playerId),
-                        (settings, membership) -> new Loaded(
-                                settings, membership.map(value -> value.group()), Set.of()))
-                .thenCombine(repository.ignoredPlayers(playerId),
-                        (loaded, ignored) -> new Loaded(loaded.settings(), loaded.group(), ignored));
+        CompletionStage<PlayerSettings> settingsStage = repository.settings(playerId, defaultChannel);
+        CompletionStage<Optional<GroupMembership>> membershipStage = repository.groupForMember(playerId);
+        CompletionStage<Set<UUID>> ignoredStage = repository.ignoredPlayers(playerId);
+        CompletionStage<Set<UUID>> membersStage = membershipStage.thenCompose(membership ->
+                membership.isEmpty()
+                        ? CompletableFuture.completedFuture(Set.of())
+                        : repository.groupMembers(membership.get().group().id()));
+        CompletionStage<Loaded> loadedStage = settingsStage
+                .thenCombine(membershipStage,
+                        (settings, membership) -> new Loaded(settings, membership, Set.of(), Set.of()))
+                .thenCombine(ignoredStage,
+                        (loaded, ignored) -> new Loaded(
+                                loaded.settings(), loaded.membership(), ignored, Set.of()))
+                .thenCombine(membersStage,
+                        (loaded, members) -> new Loaded(
+                                loaded.settings(), loaded.membership(), loaded.ignoredPlayers(), members));
         return loadedStage
                 .thenCompose(loaded -> {
-                    loaded.group().ifPresentOrElse(
-                            group -> groupCache.put(playerId, group),
+                    loaded.membership().ifPresentOrElse(
+                            membership -> {
+                                groupCache.put(playerId, membership);
+                                groupMembersCache.put(membership.group().id(), loaded.groupMembers());
+                            },
                             () -> groupCache.remove(playerId));
                     ignoreCache.put(playerId, loaded.ignoredPlayers());
                     PlayerSettings settings = loaded.settings();
                     boolean staticChannel = channels.find(settings.activeChannel()).isPresent();
-                    boolean validGroupChannel = loaded.group()
-                            .map(group -> GroupChannels.id(group.id()).equals(settings.activeChannel()))
+                    boolean validGroupChannel = loaded.membership()
+                            .map(membership -> GroupChannels.id(membership.group().id())
+                                    .equals(settings.activeChannel()))
                             .orElse(false);
                     PlayerSettings valid = staticChannel || validGroupChannel
                             ? settings
@@ -90,8 +113,8 @@ public final class PlayerStateService {
         if (channels.find(active).isPresent()) {
             return active;
         }
-        Group group = groupCache.get(playerId);
-        return group != null && GroupChannels.id(group.id()).equals(active)
+        GroupMembership membership = groupCache.get(playerId);
+        return membership != null && GroupChannels.id(membership.group().id()).equals(active)
                 ? active
                 : defaultChannel;
     }
@@ -100,16 +123,16 @@ public final class PlayerStateService {
         String active = activeChannel(playerId);
         Optional<UUID> groupId = GroupChannels.groupId(active);
         if (groupId.isPresent()) {
-            Group group = groupCache.get(playerId);
-            if (group != null && group.id().equals(groupId.get())) {
-                return group.name();
+            GroupMembership membership = groupCache.get(playerId);
+            if (membership != null && membership.group().id().equals(groupId.get())) {
+                return membership.group().name();
             }
         }
         return channels.find(active).map(channel -> channel.displayName()).orElse(active);
     }
 
     public Optional<Group> group(UUID playerId) {
-        return Optional.ofNullable(groupCache.get(playerId));
+        return Optional.ofNullable(groupCache.get(playerId)).map(GroupMembership::group);
     }
 
     public boolean isIgnoring(UUID ownerId, UUID ignoredId) {
@@ -132,15 +155,27 @@ public final class PlayerStateService {
         });
     }
 
-    public void setGroupMembership(UUID playerId, Group group) {
-        groupCache.put(playerId, group);
+    public void setGroupMembership(UUID playerId, Group group, GroupRole role) {
+        groupCache.put(playerId, new GroupMembership(group, playerId, role));
+        groupMembersCache.compute(group.id(), (ignored, current) -> {
+            java.util.HashSet<UUID> updated = new java.util.HashSet<>(
+                    current == null ? Set.of() : current);
+            updated.add(playerId);
+            return Set.copyOf(updated);
+        });
     }
 
     public CompletionStage<Void> clearGroupMembership(UUID playerId, UUID groupId) {
         PlayerSettings previousSettings = cache.get(playerId);
         boolean groupWasActive = previousSettings != null
                 && GroupChannels.id(groupId).equals(previousSettings.activeChannel());
-        groupCache.computeIfPresent(playerId, (id, group) -> group.id().equals(groupId) ? null : group);
+        groupCache.computeIfPresent(playerId,
+                (id, membership) -> membership.group().id().equals(groupId) ? null : membership);
+        groupMembersCache.computeIfPresent(groupId, (id, current) -> {
+            java.util.HashSet<UUID> updated = new java.util.HashSet<>(current);
+            updated.remove(playerId);
+            return updated.isEmpty() ? null : Set.copyOf(updated);
+        });
         if (!groupWasActive) {
             return CompletableFuture.completedFuture(null);
         }
@@ -157,8 +192,8 @@ public final class PlayerStateService {
     }
 
     public CompletionStage<Void> setActiveGroup(UUID playerId, Group group) {
-        Group membership = groupCache.get(playerId);
-        if (membership == null || !membership.id().equals(group.id())) {
+        GroupMembership membership = groupCache.get(playerId);
+        if (membership == null || !membership.group().id().equals(group.id())) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Player is not in that group"));
         }
         return persistActiveChannel(playerId, GroupChannels.id(group.id()));
@@ -168,6 +203,60 @@ public final class PlayerStateService {
         return repository.setActiveChannel(playerId, channelId).thenRun(() ->
                 cache.compute(playerId, (id, previous) -> new PlayerSettings(id, channelId,
                         previous == null || previous.directMessagesEnabled())));
+    }
+
+    public CompletionStage<Boolean> toggleDirectMessages(UUID playerId) {
+        PlayerSettings cached = cache.get(playerId);
+        CompletionStage<PlayerSettings> current = cached == null
+                ? repository.settings(playerId, defaultChannel)
+                : CompletableFuture.completedFuture(cached);
+        return current.thenCompose(settings -> {
+            boolean enabled = !settings.directMessagesEnabled();
+            return repository.setDirectMessagesEnabled(playerId, enabled).thenApply(ignored -> {
+                cache.put(playerId, new PlayerSettings(
+                        playerId, settings.activeChannel(), enabled));
+                return enabled;
+            });
+        });
+    }
+
+    @Override
+    public CompletionStage<DirectState> directState(
+            UUID recipientId,
+            UUID senderId,
+            String requestedDefaultChannel
+    ) {
+        PlayerSettings cachedSettings = cache.get(recipientId);
+        Set<UUID> cachedIgnores = ignoreCache.get(recipientId);
+        if (cachedSettings != null && cachedIgnores != null) {
+            return CompletableFuture.completedFuture(new DirectState(
+                    cachedSettings, cachedIgnores.contains(senderId)));
+        }
+        return repository.settings(recipientId, defaultChannel)
+                .thenCombine(repository.isIgnoring(recipientId, senderId), DirectState::new);
+    }
+
+    @Override
+    public CompletionStage<Optional<GroupState>> groupState(UUID playerId) {
+        GroupMembership membership = groupCache.get(playerId);
+        if (membership != null) {
+            Set<UUID> members = groupMembersCache.get(membership.group().id());
+            if (members != null) {
+                return CompletableFuture.completedFuture(Optional.of(
+                        new GroupState(membership.group(), members)));
+            }
+        }
+        return repository.groupForMember(playerId).thenCompose(stored -> {
+            if (stored.isEmpty()) {
+                return CompletableFuture.completedFuture(Optional.empty());
+            }
+            Group group = stored.get().group();
+            return repository.groupMembers(group.id()).thenApply(members -> {
+                groupCache.put(playerId, stored.get());
+                groupMembersCache.put(group.id(), members);
+                return Optional.of(new GroupState(group, members));
+            });
+        });
     }
 
     public void remove(UUID playerId) {

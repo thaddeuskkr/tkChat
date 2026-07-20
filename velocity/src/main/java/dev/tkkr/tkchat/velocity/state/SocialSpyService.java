@@ -28,6 +28,10 @@ public final class SocialSpyService {
         return enabled.contains(playerId);
     }
 
+    public Set<UUID> enabledPlayers() {
+        return Set.copyOf(enabled);
+    }
+
     public void remove(UUID playerId) {
         enabled.remove(playerId);
     }

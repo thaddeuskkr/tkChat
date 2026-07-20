@@ -54,8 +54,24 @@ public final class AppConfig {
         if (mongodb.workerThreads < 1 || mongodb.workerThreads > 32) {
             throw new IllegalArgumentException("mongodb.worker-threads must be between 1 and 32");
         }
+        if (mongodb.maxQueuedOperations < 1 || mongodb.maxQueuedOperations > 10_000) {
+            throw new IllegalArgumentException(
+                    "mongodb.max-queued-operations must be between 1 and 10000");
+        }
         if (chat.clearLines < 1 || chat.clearLines > 200) {
             throw new IllegalArgumentException("chat.clear-lines must be between 1 and 200");
+        }
+        if (chat.maxPendingMessagesPerSender < 1 || chat.maxPendingMessagesPerSender > 100) {
+            throw new IllegalArgumentException(
+                    "chat.max-pending-messages-per-sender must be between 1 and 100");
+        }
+        if (chat.maxMessageAgeMillis < 100 || chat.maxMessageAgeMillis > 60_000) {
+            throw new IllegalArgumentException(
+                    "chat.max-message-age-millis must be between 100 and 60000");
+        }
+        if (chat.maxDeliveryAgeMillis < 1_000 || chat.maxDeliveryAgeMillis > 300_000) {
+            throw new IllegalArgumentException(
+                    "chat.max-delivery-age-millis must be between 1000 and 300000");
         }
         if (mentions.prefix == null || mentions.prefix.isBlank()) {
             throw new IllegalArgumentException("mentions.prefix cannot be blank");
@@ -95,6 +111,9 @@ public final class AppConfig {
         public int rateLimitMessages = 5;
         public long rateLimitWindowMillis = 5_000;
         public int clearLines = 50;
+        public int maxPendingMessagesPerSender = 8;
+        public long maxMessageAgeMillis = 5_000;
+        public long maxDeliveryAgeMillis = 30_000;
     }
 
     public static final class Mentions {
@@ -125,6 +144,7 @@ public final class AppConfig {
         public long readTimeoutMillis = 10_000;
         public long operationTimeoutMillis = 15_000;
         public int workerThreads = 4;
+        public int maxQueuedOperations = 256;
     }
 
     public static final class RabbitMq {

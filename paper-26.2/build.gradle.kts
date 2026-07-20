@@ -26,6 +26,6 @@ tasks {
         expand(mapOf("version" to artifactVersion))
     }
     jar {
-        archiveFileName.set("tkChat-Paper-26.2-$artifactVersion.jar")
+        archiveFileName.set("tkChat-Paper-26.2.jar")
     }
 }

@@ -23,7 +23,7 @@ public final class ChatRouter {
 
     private final ChannelRegistry channels;
     private final AccessController accessController;
-    private final SocialRepository socialRepository;
+    private final ChatStateProvider chatState;
     private final ChatPolicy policy;
     private final SlidingWindowRateLimiter rateLimiter;
     private final Clock clock;
@@ -37,9 +37,21 @@ public final class ChatRouter {
             Clock clock,
             String groupBypassPermission
     ) {
+        this(channels, accessController, repositoryState(socialRepository), policy, clock,
+                groupBypassPermission);
+    }
+
+    public ChatRouter(
+            ChannelRegistry channels,
+            AccessController accessController,
+            ChatStateProvider chatState,
+            ChatPolicy policy,
+            Clock clock,
+            String groupBypassPermission
+    ) {
         this.channels = channels;
         this.accessController = accessController;
-        this.socialRepository = socialRepository;
+        this.chatState = chatState;
         this.policy = policy;
         this.rateLimiter = new SlidingWindowRateLimiter(policy.rateLimitMessages(), policy.rateLimitWindow());
         this.clock = clock;
@@ -82,14 +94,13 @@ public final class ChatRouter {
                         return CompletableFuture.completedFuture(
                                 new RouteDecision.Denied(access.denialReason(), ""));
                     }
-                    return socialRepository.settings(recipientId, "global")
-                            .thenCombine(socialRepository.isIgnoring(recipientId, sender.playerId()),
-                                    (settings, ignored) -> {
-                                        if (!settings.directMessagesEnabled()) {
+                    return chatState.directState(recipientId, sender.playerId(), "global")
+                            .thenApply(state -> {
+                                        if (!state.settings().directMessagesEnabled()) {
                                             return (RouteDecision) new RouteDecision.Denied(
                                                     DenialReason.DIRECT_MESSAGES_DISABLED, recipientName);
                                         }
-                                        if (ignored) {
+                                        if (state.ignoringSender()) {
                                             return (RouteDecision) new RouteDecision.Denied(
                                                     DenialReason.IGNORED, recipientName);
                                         }
@@ -116,22 +127,26 @@ public final class ChatRouter {
                         return CompletableFuture.completedFuture(
                                 new RouteDecision.Denied(access.denialReason(), ""));
                     }
-                    return socialRepository.groupForMember(sender.playerId()).thenCompose(membership -> {
-                        if (membership.isEmpty()) {
-                            return denied(DenialReason.NOT_IN_GROUP, "");
+                    return chatState.groupState(sender.playerId()).thenApply(state -> {
+                        if (state.isEmpty()) {
+                            return (RouteDecision) new RouteDecision.Denied(
+                                    DenialReason.NOT_IN_GROUP, "");
                         }
-                        return socialRepository.groupMembers(membership.get().group().id()).thenApply(members -> {
-                            ChannelDefinition group = syntheticChannel(
-                                    "group", "Group", "tkchat.channels.group.send",
-                                    "tkchat.channels.group.receive",
-                                    groupBypassPermission);
-                            return approved(sender, group, RouteKind.GROUP,
-                                    membership.get().group().id().toString(), membership.get().group().name(),
-                                    content, members, access);
-                        });
+                        ChatStateProvider.GroupState groupState = state.get();
+                        ChannelDefinition group = syntheticChannel(
+                                "group", "Group", "tkchat.channels.group.send",
+                                "tkchat.channels.group.receive",
+                                groupBypassPermission);
+                        return (RouteDecision) approved(sender, group, RouteKind.GROUP,
+                                groupState.group().id().toString(), groupState.group().name(),
+                                content, groupState.members(), access);
                     });
                 })
                 .exceptionally(error -> new RouteDecision.Denied(DenialReason.STORAGE_UNAVAILABLE, error.getMessage()));
+    }
+
+    public void remove(UUID playerId) {
+        rateLimiter.remove(playerId);
     }
 
     private RouteDecision validate(SenderContext sender, String content) {
@@ -181,5 +196,31 @@ public final class ChatRouter {
 
     private static CompletionStage<RouteDecision> denied(DenialReason reason, String detail) {
         return CompletableFuture.completedFuture(new RouteDecision.Denied(reason, detail));
+    }
+
+    private static ChatStateProvider repositoryState(SocialRepository repository) {
+        return new ChatStateProvider() {
+            @Override
+            public CompletionStage<DirectState> directState(
+                    UUID recipientId,
+                    UUID senderId,
+                    String defaultChannel
+            ) {
+                return repository.settings(recipientId, defaultChannel)
+                        .thenCombine(repository.isIgnoring(recipientId, senderId), DirectState::new);
+            }
+
+            @Override
+            public CompletionStage<java.util.Optional<GroupState>> groupState(UUID playerId) {
+                return repository.groupForMember(playerId).thenCompose(membership -> {
+                    if (membership.isEmpty()) {
+                        return CompletableFuture.completedFuture(java.util.Optional.empty());
+                    }
+                    return repository.groupMembers(membership.get().group().id())
+                            .thenApply(members -> java.util.Optional.of(
+                                    new GroupState(membership.get().group(), members)));
+                });
+            }
+        };
     }
 }

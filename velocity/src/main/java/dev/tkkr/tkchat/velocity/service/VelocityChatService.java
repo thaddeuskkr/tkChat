@@ -14,6 +14,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 
 import java.util.Map;
 import java.util.UUID;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
@@ -26,7 +27,7 @@ public final class VelocityChatService {
     private final ConversationTracker conversations;
     private final ItemLinkService itemLinks;
     private final PlayerFormattingService formatting;
-    private final PerSenderTaskQueue outbound = new PerSenderTaskQueue();
+    private final PerSenderTaskQueue outbound;
 
     public VelocityChatService(
             ProxyServer proxy,
@@ -34,7 +35,9 @@ public final class VelocityChatService {
             MessageTransport transport,
             ConversationTracker conversations,
             ItemLinkService itemLinks,
-            PlayerFormattingService formatting
+            PlayerFormattingService formatting,
+            int maxPendingMessagesPerSender,
+            Duration maxMessageAge
     ) {
         this.proxy = proxy;
         this.router = router;
@@ -42,10 +45,17 @@ public final class VelocityChatService {
         this.conversations = conversations;
         this.itemLinks = itemLinks;
         this.formatting = formatting;
+        this.outbound = new PerSenderTaskQueue(
+                maxPendingMessagesPerSender, maxMessageAge, java.time.Clock.systemUTC());
     }
 
-    public void reconfigure(ChatRouter router) {
+    public void reconfigure(
+            ChatRouter router,
+            int maxPendingMessagesPerSender,
+            Duration maxMessageAge
+    ) {
         this.router = router;
+        outbound.reconfigure(maxPendingMessagesPerSender, maxMessageAge);
     }
 
     public CompletionStage<Void> channel(Player sender, String channelId, String content) {
@@ -64,14 +74,14 @@ public final class VelocityChatService {
         UUID senderId = sender.getUniqueId();
         UUID recipientId = recipient.getUniqueId();
         conversations.recordOutgoing(senderId, recipientId);
-        return outbound.submit(senderId, () -> router.routeDirect(
+        return handleQueueFailure(sender, outbound.submit(senderId, () -> router.routeDirect(
                         context(sender), recipientId, recipient.getUsername(), content)
                 .thenCompose(decision -> {
                     if (decision instanceof RouteDecision.Approved) {
                         conversations.recordIncoming(recipientId, senderId);
                     }
                     return publishOrExplain(sender, decision);
-                }));
+                })));
     }
 
     public CompletionStage<Void> reply(Player sender, String content) {
@@ -100,8 +110,8 @@ public final class VelocityChatService {
             Player sender,
             Supplier<? extends CompletionStage<RouteDecision>> route
     ) {
-        return outbound.submit(sender.getUniqueId(),
-                () -> route.get().thenCompose(decision -> publishOrExplain(sender, decision)));
+        return handleQueueFailure(sender, outbound.submit(sender.getUniqueId(),
+                () -> route.get().thenCompose(decision -> publishOrExplain(sender, decision))));
     }
 
     private CompletionStage<RouteDecision> intercept(
@@ -113,7 +123,17 @@ public final class VelocityChatService {
                 return CompletableFuture.completedFuture(decision);
             }
             return publishOrExplain(sender, decision).thenApply(ignored -> decision);
-        }));
+        })).exceptionally(error -> {
+            PerSenderTaskQueue.QueueRejectedException rejected = queueRejection(error);
+            if (rejected == null) {
+                throw new CompletionException(unwrap(error));
+            }
+            return new RouteDecision.Denied(
+                    rejected.reason() == PerSenderTaskQueue.RejectionReason.FULL
+                            ? DenialReason.CHAT_BACKLOG_FULL
+                            : DenialReason.MESSAGE_EXPIRED,
+                    "");
+        });
     }
 
     public CompletionStage<Void> publishOrExplain(Player sender, RouteDecision decision) {
@@ -145,6 +165,7 @@ public final class VelocityChatService {
     }
 
     public void remove(UUID playerId) {
+        router.remove(playerId);
         outbound.remove(playerId);
     }
 
@@ -156,6 +177,8 @@ public final class VelocityChatService {
             case MUTED -> "You are muted.";
             case LINKS_NOT_ALLOWED -> "You do not have permission to send links.";
             case RATE_LIMITED -> "You are sending messages too quickly.";
+            case CHAT_BACKLOG_FULL -> "Too many of your messages are still waiting. Please try again shortly.";
+            case MESSAGE_EXPIRED -> "Your message waited too long and was not sent. Please try again.";
             case INVALID_MESSAGE -> "That message is empty, too long, or contains invalid characters.";
             case DIRECT_MESSAGES_DISABLED -> "That player has direct messages disabled.";
             case IGNORED -> "That player is not accepting messages from you.";
@@ -171,5 +194,36 @@ public final class VelocityChatService {
 
     public static Component success(String message) {
         return Component.text(message, NamedTextColor.GREEN);
+    }
+
+    private static CompletionStage<Void> handleQueueFailure(
+            Player sender,
+            CompletionStage<Void> stage
+    ) {
+        return stage.exceptionally(error -> {
+            PerSenderTaskQueue.QueueRejectedException rejected = queueRejection(error);
+            if (rejected == null) {
+                throw new CompletionException(unwrap(error));
+            }
+            sender.sendMessage(denial(rejected.reason() == PerSenderTaskQueue.RejectionReason.FULL
+                    ? DenialReason.CHAT_BACKLOG_FULL
+                    : DenialReason.MESSAGE_EXPIRED));
+            return null;
+        });
+    }
+
+    private static PerSenderTaskQueue.QueueRejectedException queueRejection(Throwable error) {
+        Throwable cause = unwrap(error);
+        return cause instanceof PerSenderTaskQueue.QueueRejectedException rejected ? rejected : null;
+    }
+
+    private static Throwable unwrap(Throwable error) {
+        Throwable current = error;
+        while ((current instanceof CompletionException
+                || current instanceof java.util.concurrent.ExecutionException)
+                && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
     }
 }

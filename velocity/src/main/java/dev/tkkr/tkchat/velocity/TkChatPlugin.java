@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Plugin(
         id = "tkchat",
         name = "tkChat",
-        version = "0.1.0-SNAPSHOT",
+        version = "0.2.0",
         description = "Velocity-led, cross-server channel chat",
         authors = {"tkkr"},
         dependencies = {
@@ -69,6 +69,7 @@ public final class TkChatPlugin {
             long mongodbReadTimeoutMillis,
             long mongodbOperationTimeoutMillis,
             int mongodbWorkerThreads,
+            int mongodbMaxQueuedOperations,
             boolean rabbitmqEnabled,
             boolean rabbitmqFallbackToLocal,
             String rabbitmqUri,
@@ -89,6 +90,7 @@ public final class TkChatPlugin {
                     config.mongodb.readTimeoutMillis,
                     config.mongodb.operationTimeoutMillis,
                     config.mongodb.workerThreads,
+                    config.mongodb.maxQueuedOperations,
                     config.rabbitmq.enabled,
                     config.rabbitmq.fallbackToLocal,
                     config.rabbitmq.uri,
@@ -112,7 +114,8 @@ public final class TkChatPlugin {
                     || mongodbConnectTimeoutMillis != next.mongodbConnectTimeoutMillis
                     || mongodbReadTimeoutMillis != next.mongodbReadTimeoutMillis
                     || mongodbOperationTimeoutMillis != next.mongodbOperationTimeoutMillis
-                    || mongodbWorkerThreads != next.mongodbWorkerThreads) {
+                    || mongodbWorkerThreads != next.mongodbWorkerThreads
+                    || mongodbMaxQueuedOperations != next.mongodbMaxQueuedOperations) {
                 changed.add("mongodb");
             }
             if (rabbitmqEnabled != next.rabbitmqEnabled
@@ -169,22 +172,25 @@ public final class TkChatPlugin {
             channels = new ChannelRegistry(config.channelDefinitions());
             repository = createRepository(config);
             access = new VelocityAccessController(config.libertyBans.failClosed);
+            states = new PlayerStateService(repository, channels, config.defaultChannel);
             ChatRouter router = new ChatRouter(
-                    channels, access, repository, config.policy(), Clock.systemUTC(),
+                    channels, access, states, config.policy(), Clock.systemUTC(),
                     Permissions.BYPASS_CHANNEL_RESTRICTIONS);
             transport = createTransport(config);
-            states = new PlayerStateService(repository, channels, config.defaultChannel);
             spies = new SocialSpyService();
             PlayerFormattingService formatting = new PlayerFormattingService();
             delivery = new VelocityDeliveryService(
                     proxy, channels, access, config.formats, config.mentions, config.itemLinks,
-                    formatting, states, spies, config.chat.clearLines);
+                    formatting, states, spies, config.chat.clearLines,
+                    java.time.Duration.ofMillis(config.chat.maxDeliveryAgeMillis));
             transport.start(delivery::deliver);
 
             ConversationTracker conversations = new ConversationTracker();
             itemLinks = new ItemLinkService(proxy, config.itemLinks);
             chat = new VelocityChatService(
-                    proxy, router, transport, conversations, itemLinks, formatting);
+                    proxy, router, transport, conversations, itemLinks, formatting,
+                    config.chat.maxPendingMessagesPerSender,
+                    java.time.Duration.ofMillis(config.chat.maxMessageAgeMillis));
             networkMessages = new NetworkMessageService(transport);
 
             commandRegistrar = new CommandRegistrar(this, proxy);
@@ -227,7 +233,7 @@ public final class TkChatPlugin {
             validateSignedVelocity(config);
             ChannelRegistry replacementChannels = new ChannelRegistry(config.channelDefinitions());
             ChatRouter replacementRouter = new ChatRouter(
-                    replacementChannels, access, repository, config.policy(), Clock.systemUTC(),
+                    replacementChannels, access, states, config.policy(), Clock.systemUTC(),
                     Permissions.BYPASS_CHANNEL_RESTRICTIONS);
             List<String> restartRequired = infrastructure.changed(config);
 
@@ -238,8 +244,12 @@ public final class TkChatPlugin {
             itemLinks.reconfigure(config.itemLinks);
             delivery.reconfigure(
                     replacementChannels, config.formats, config.mentions,
-                    config.itemLinks, config.chat.clearLines);
-            chat.reconfigure(replacementRouter);
+                    config.itemLinks, config.chat.clearLines,
+                    java.time.Duration.ofMillis(config.chat.maxDeliveryAgeMillis));
+            chat.reconfigure(
+                    replacementRouter,
+                    config.chat.maxPendingMessagesPerSender,
+                    java.time.Duration.ofMillis(config.chat.maxMessageAgeMillis));
             channels = replacementChannels;
 
             CompletionStage<Void> repairs = states.reconfigure(

@@ -57,9 +57,10 @@ Build a particular Fabric artifact:
 ./gradlew :fabric-26-2:jar
 ```
 
-Build every release artifact with `./gradlew releaseArtifacts`. Fabric 26.x tasks require Gradle
-itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation when invoking the complete
-matrix.
+Build every release artifact with `./gradlew releaseArtifacts`. Release jars are written under the
+plugin-version folder, such as `build/releases/0.2.0/`, while jar names omit the plugin version.
+Fabric 26.x tasks require Gradle itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation
+when invoking the complete matrix.
 
 ## Live integration verification
 
@@ -82,7 +83,7 @@ server-authored messages.
 
 ## Installation
 
-1. Put `tkChat-Velocity-<version>.jar` on Velocity.
+1. Put `tkChat-Velocity.jar` on Velocity.
 2. Put the matching Paper or exact-version Fabric artifact on every backend.
 3. Keep SignedVelocity installed on the proxy and all backends.
 4. Start Velocity once to generate `plugins/tkchat/config.yml`.

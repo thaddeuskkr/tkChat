@@ -2,16 +2,14 @@ package dev.tkkr.tkchat.velocity.command;
 
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.proxy.Player;
-import dev.tkkr.tkchat.core.service.SocialRepository;
 import dev.tkkr.tkchat.velocity.service.VelocityChatService;
+import dev.tkkr.tkchat.velocity.state.PlayerStateService;
 
 public final class DirectMessagesToggleCommand implements SimpleCommand {
-    private final SocialRepository repository;
-    private final String defaultChannel;
+    private final PlayerStateService states;
 
-    public DirectMessagesToggleCommand(SocialRepository repository, String defaultChannel) {
-        this.repository = repository;
-        this.defaultChannel = defaultChannel;
+    public DirectMessagesToggleCommand(PlayerStateService states) {
+        this.states = states;
     }
 
     @Override
@@ -20,10 +18,8 @@ public final class DirectMessagesToggleCommand implements SimpleCommand {
             invocation.source().sendMessage(VelocityChatService.error("Only players have DM settings."));
             return;
         }
-        repository.settings(player.getUniqueId(), defaultChannel).thenCompose(settings ->
-                repository.setDirectMessagesEnabled(player.getUniqueId(), !settings.directMessagesEnabled())
-                        .thenApply(ignored -> !settings.directMessagesEnabled())
-        ).whenComplete((enabled, error) -> player.sendMessage(error == null
+        states.toggleDirectMessages(player.getUniqueId())
+                .whenComplete((enabled, error) -> player.sendMessage(error == null
                 ? VelocityChatService.success("Direct messages are now " + (enabled ? "enabled." : "disabled."))
                 : VelocityChatService.error("DM settings could not be changed.")));
     }
