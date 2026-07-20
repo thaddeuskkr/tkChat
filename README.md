@@ -61,7 +61,7 @@ Build a particular Fabric artifact:
 ```
 
 Build every release artifact with `./gradlew releaseArtifacts`. Release jars are written under the
-plugin-version folder, such as `build/releases/0.3.0/`, while jar names omit the plugin version.
+plugin-version folder, such as `build/releases/0.3.1/`, while jar names omit the plugin version.
 Fabric 26.x tasks require Gradle itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation
 when invoking the complete matrix.
 
