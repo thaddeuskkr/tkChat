@@ -3,6 +3,7 @@ package dev.tkkr.tkchat.velocity.command;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.permission.Tristate;
+import dev.tkkr.tkchat.velocity.ResponseTestFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -18,7 +19,8 @@ class TkChatCommandTest {
         AtomicReference<String[]> received = new AtomicReference<>();
         SimpleCommand channel = invocation -> received.set(invocation.arguments());
         TkChatCommand root = new TkChatCommand(List.of(
-                new TkChatCommand.Child("channel", "tkchat.command.channel", channel)));
+                new TkChatCommand.Child("channel", "tkchat.command.channel", channel)),
+                ResponseTestFixtures.responses());
         CommandSource source = sourceWith("tkchat.command.channel");
 
         root.execute(invocation(source, "tkchat", "channel", "g"));
@@ -46,7 +48,7 @@ class TkChatCommandTest {
         TkChatCommand root = new TkChatCommand(List.of(
                 new TkChatCommand.Child("channel", "tkchat.command.channel", channel),
                 new TkChatCommand.Child("reload", "tkchat.command.reload", invocation -> {
-                })));
+                })), ResponseTestFixtures.responses());
         CommandSource source = sourceWith("tkchat.command.channel");
 
         assertEquals(List.of("channel"), root.suggest(invocation(source, "tkchat")));

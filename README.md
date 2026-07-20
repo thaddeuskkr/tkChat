@@ -39,6 +39,9 @@ evaluates permissions and mutes, and inserts player input only as literal text.
 - RabbitMQ (optional; only needed when multiple Velocity processes must fan out chat)
 - Java 21 for Minecraft 1.21.x and Java 25 for Minecraft 26.x
 
+The Minecraft 1.21.1 Fabric artifact has a tested compatibility floor of Fabric Loader 0.18.4 and
+Fabric API 0.116.13+1.21.1. Newer API and loader versions for Minecraft 1.21.1 remain valid.
+
 LuckPerms and LibertyBans are not required on backend servers. The backend artifacts intentionally
 contain no moderation or routing authority.
 
@@ -58,7 +61,7 @@ Build a particular Fabric artifact:
 ```
 
 Build every release artifact with `./gradlew releaseArtifacts`. Release jars are written under the
-plugin-version folder, such as `build/releases/0.2.0/`, while jar names omit the plugin version.
+plugin-version folder, such as `build/releases/0.3.0/`, while jar names omit the plugin version.
 Fabric 26.x tasks require Gradle itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation
 when invoking the complete matrix.
 
@@ -163,6 +166,14 @@ nodes are derived from the ID. Grant `tkchat.bypass.channel_restrictions` and
 `tkchat.bypass.private_groups` to administrators who should bypass locked channels and private
 group access.
 
+Command responses are MiniMessage templates in `plugins/tkchat/messages.yml`, which is generated
+with sensible defaults on first startup. This includes usage and error messages, permission and
+moderation denials, group notifications, and group action-button labels and hover text. Runtime
+values such as player, group, and channel names are inserted as literal text, so they cannot inject
+formatting into an administrator-defined response. The prefix prepended to every response remains
+alongside the other presentation settings at `formats.response-prefix` in `config.yml`; its default
+is a colored `tkChat » `, and setting it to an empty string disables it.
+
 The active backend name is explicitly added as LuckPerms' `server` context. World, dimension,
 gamemode, region, and other backend-only contexts are not inferred by the proxy in this release.
 
@@ -197,11 +208,12 @@ Full root-command examples include `/tkchat channel global`, `/tkchat channel g`
 aliases remain available when another plugin has not claimed them.
 
 Reloading applies channels, channel command aliases, the default channel, chat limits and rate
-limits, formats, mentions, item links, clear-chat settings, SignedVelocity enforcement, and the
-LibertyBans fail-closed setting. Players whose selected channel was removed are moved to the new
-default channel. Changes to `instance-id`, `mariadb`, or `rabbitmq` are validated but require a
-Velocity restart because they own long-lived storage or transport connections; the command reports
-those sections after an otherwise successful reload.
+limits, formats (including the response prefix), `messages.yml`, mentions, item links, clear-chat
+settings, SignedVelocity enforcement, and the LibertyBans fail-closed setting. Players whose
+selected channel was removed are moved to the new default channel. Changes to `instance-id`,
+`mariadb`, or `rabbitmq` are validated but require a Velocity restart because they own long-lived
+storage or transport connections; the command reports those sections after an otherwise successful
+reload.
 
 The proxy also intercepts `/minecraft:msg`, `/minecraft:tell`, and `/minecraft:w`, preventing a
 namespaced vanilla bypass.

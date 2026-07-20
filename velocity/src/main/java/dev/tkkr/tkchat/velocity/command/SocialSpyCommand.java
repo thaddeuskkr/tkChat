@@ -2,24 +2,27 @@ package dev.tkkr.tkchat.velocity.command;
 
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.proxy.Player;
-import dev.tkkr.tkchat.velocity.service.VelocityChatService;
+import dev.tkkr.tkchat.velocity.config.ResponseKey;
+import dev.tkkr.tkchat.velocity.service.ResponseService;
 import dev.tkkr.tkchat.velocity.state.SocialSpyService;
 
 public final class SocialSpyCommand implements SimpleCommand {
     private final SocialSpyService spies;
+    private final ResponseService responses;
 
-    public SocialSpyCommand(SocialSpyService spies) {
+    public SocialSpyCommand(SocialSpyService spies, ResponseService responses) {
         this.spies = spies;
+        this.responses = responses;
     }
 
     @Override
     public void execute(Invocation invocation) {
         if (!(invocation.source() instanceof Player player)) {
-            invocation.source().sendMessage(VelocityChatService.error("Only players can use social spy."));
+            invocation.source().sendMessage(responses.message(ResponseKey.SOCIAL_SPY_PLAYER_ONLY));
             return;
         }
         if (invocation.arguments().length > 1) {
-            player.sendMessage(VelocityChatService.error("Usage: /socialspy [on|off]"));
+            player.sendMessage(responses.message(ResponseKey.SOCIAL_SPY_USAGE));
             return;
         }
         boolean enabled;
@@ -30,11 +33,12 @@ public final class SocialSpyCommand implements SimpleCommand {
         } else if (invocation.arguments()[0].equalsIgnoreCase("off")) {
             enabled = spies.set(player.getUniqueId(), false);
         } else {
-            player.sendMessage(VelocityChatService.error("Usage: /socialspy [on|off]"));
+            player.sendMessage(responses.message(ResponseKey.SOCIAL_SPY_USAGE));
             return;
         }
-        player.sendMessage(VelocityChatService.success(
-                "Social spy " + (enabled ? "enabled" : "disabled") + "."));
+        player.sendMessage(responses.message(enabled
+                ? ResponseKey.SOCIAL_SPY_ENABLED
+                : ResponseKey.SOCIAL_SPY_DISABLED));
     }
 
     @Override

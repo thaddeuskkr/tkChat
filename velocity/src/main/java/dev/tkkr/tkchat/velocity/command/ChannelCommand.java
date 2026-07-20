@@ -6,11 +6,10 @@ import dev.tkkr.tkchat.core.model.ChannelDefinition;
 import dev.tkkr.tkchat.core.model.Group;
 import dev.tkkr.tkchat.core.service.ChannelRegistry;
 import dev.tkkr.tkchat.velocity.Permissions;
+import dev.tkkr.tkchat.velocity.config.ResponseKey;
 import dev.tkkr.tkchat.velocity.integration.VelocityAccessController;
-import dev.tkkr.tkchat.velocity.service.VelocityChatService;
+import dev.tkkr.tkchat.velocity.service.ResponseService;
 import dev.tkkr.tkchat.velocity.state.PlayerStateService;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 
 import java.util.List;
 import java.util.Locale;
@@ -20,38 +19,42 @@ public final class ChannelCommand implements SimpleCommand {
     private final ChannelRegistry channels;
     private final PlayerStateService states;
     private final VelocityAccessController access;
+    private final ResponseService responses;
 
     public ChannelCommand(
             ChannelRegistry channels,
             PlayerStateService states,
-            VelocityAccessController access
+            VelocityAccessController access,
+            ResponseService responses
     ) {
         this.channels = channels;
         this.states = states;
         this.access = access;
+        this.responses = responses;
     }
 
     @Override
     public void execute(Invocation invocation) {
         if (!(invocation.source() instanceof Player player)) {
-            invocation.source().sendMessage(VelocityChatService.error("Only players can select a chat channel."));
+            invocation.source().sendMessage(responses.message(ResponseKey.CHANNEL_PLAYER_ONLY));
             return;
         }
         if (!states.isLoaded(player.getUniqueId())) {
-            player.sendMessage(VelocityChatService.denial(
-                    dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
+            player.sendMessage(responses.denial(dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
             return;
         }
         String[] arguments = invocation.arguments();
         if (arguments.length == 0) {
-            player.sendMessage(Component.text("Active channel: ", NamedTextColor.GRAY)
-                    .append(Component.text(states.activeDisplayName(player.getUniqueId()), NamedTextColor.GREEN)));
-            player.sendMessage(Component.text("Channels: ", NamedTextColor.GRAY)
-                    .append(Component.text(String.join(", ", visibleChannelLabels(player)), NamedTextColor.WHITE)));
+            player.sendMessage(responses.message(
+                    ResponseKey.CHANNEL_STATUS_ACTIVE,
+                    ResponseService.text("channel", states.activeDisplayName(player.getUniqueId()))));
+            player.sendMessage(responses.message(
+                    ResponseKey.CHANNEL_STATUS_AVAILABLE,
+                    ResponseService.text("channels", String.join(", ", visibleChannelLabels(player)))));
             return;
         }
         if (arguments.length != 1) {
-            player.sendMessage(VelocityChatService.error("Usage: /channel <channel>"));
+            player.sendMessage(responses.message(ResponseKey.CHANNEL_USAGE));
             return;
         }
 
@@ -66,13 +69,15 @@ public final class ChannelCommand implements SimpleCommand {
         if (group != null && (requested.equals("group") || requested.equals(group.normalizedName()))) {
             states.setActiveGroup(player.getUniqueId(), group).whenComplete((ignored, error) ->
                     player.sendMessage(error == null
-                            ? VelocityChatService.success("Active channel set to " + group.name() + ".")
-                            : VelocityChatService.error("The group channel could not be saved.")));
+                            ? responses.message(ResponseKey.CHANNEL_ACTIVE_SET,
+                            ResponseService.text("channel", group.name()))
+                            : responses.message(ResponseKey.CHANNEL_GROUP_SAVE_FAILED)));
             return;
         }
 
-        player.sendMessage(VelocityChatService.error("Unknown channel. Available: "
-                + String.join(", ", visibleChannelLabels(player))));
+        player.sendMessage(responses.message(
+                ResponseKey.CHANNEL_UNKNOWN,
+                ResponseService.text("channels", String.join(", ", visibleChannelLabels(player)))));
     }
 
     @Override
@@ -88,18 +93,18 @@ public final class ChannelCommand implements SimpleCommand {
 
     void select(Player player, ChannelDefinition channel) {
         if (!states.isLoaded(player.getUniqueId())) {
-            player.sendMessage(VelocityChatService.denial(
-                    dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
+            player.sendMessage(responses.denial(dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
             return;
         }
         if (!canUse(player, channel)) {
-            player.sendMessage(VelocityChatService.error("You cannot use that channel."));
+            player.sendMessage(responses.message(ResponseKey.CHANNEL_NO_ACCESS));
             return;
         }
         states.setActiveChannel(player.getUniqueId(), channel.id()).whenComplete((ignored, error) ->
                 player.sendMessage(error == null
-                        ? VelocityChatService.success("Active channel set to " + channel.displayName() + ".")
-                        : VelocityChatService.error("The channel could not be saved.")));
+                        ? responses.message(ResponseKey.CHANNEL_ACTIVE_SET,
+                        ResponseService.text("channel", channel.displayName()))
+                        : responses.message(ResponseKey.CHANNEL_SAVE_FAILED)));
     }
 
     private List<String> selectableNames(Player player) {

@@ -5,8 +5,9 @@ import com.velocitypowered.api.proxy.Player;
 import dev.tkkr.tkchat.core.model.ChannelDefinition;
 import dev.tkkr.tkchat.core.model.ChannelScope;
 import dev.tkkr.tkchat.core.service.ChannelRegistry;
+import dev.tkkr.tkchat.velocity.config.ResponseKey;
 import dev.tkkr.tkchat.velocity.service.NetworkMessageService;
-import dev.tkkr.tkchat.velocity.service.VelocityChatService;
+import dev.tkkr.tkchat.velocity.service.ResponseService;
 
 import java.util.List;
 import java.util.Locale;
@@ -14,36 +15,39 @@ import java.util.Locale;
 public final class ClearChatCommand implements SimpleCommand {
     private final NetworkMessageService messages;
     private final ChannelRegistry channels;
+    private final ResponseService responses;
 
-    public ClearChatCommand(NetworkMessageService messages, ChannelRegistry channels) {
+    public ClearChatCommand(
+            NetworkMessageService messages,
+            ChannelRegistry channels,
+            ResponseService responses
+    ) {
         this.messages = messages;
         this.channels = channels;
+        this.responses = responses;
     }
 
     @Override
     public void execute(Invocation invocation) {
         if (invocation.arguments().length != 1) {
-            invocation.source().sendMessage(VelocityChatService.error(
-                    "Usage: /clearchat <channel>"));
+            invocation.source().sendMessage(responses.message(ResponseKey.CLEAR_USAGE));
             return;
         }
 
         ChannelDefinition channel = channels.find(invocation.arguments()[0]).orElse(null);
         if (channel == null) {
-            invocation.source().sendMessage(VelocityChatService.error(
-                    "Unknown channel. Use /clearchat <channel>."));
+            invocation.source().sendMessage(responses.message(ResponseKey.CLEAR_UNKNOWN));
             return;
         }
         if (channel.scope() == ChannelScope.SERVER
                 && (!(invocation.source() instanceof Player player)
                 || player.getCurrentServer().isEmpty())) {
-            invocation.source().sendMessage(VelocityChatService.error(
-                    "A server-scoped channel can only be cleared by a connected player."));
+            invocation.source().sendMessage(responses.message(ResponseKey.CLEAR_PLAYER_REQUIRED));
             return;
         }
 
         messages.clearChat(invocation.source(), channel).exceptionally(error -> {
-            invocation.source().sendMessage(VelocityChatService.error("Chat could not be cleared."));
+            invocation.source().sendMessage(responses.message(ResponseKey.CLEAR_FAILED));
             return null;
         });
     }

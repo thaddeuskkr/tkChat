@@ -2,6 +2,7 @@ package dev.tkkr.tkchat.velocity.listener;
 
 import com.velocitypowered.api.event.command.CommandExecuteEvent;
 import com.velocitypowered.api.proxy.Player;
+import dev.tkkr.tkchat.velocity.ResponseTestFixtures;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Proxy;
@@ -27,7 +28,8 @@ class VanillaCommandBypassListenerTest {
                 });
         CommandExecuteEvent event = new CommandExecuteEvent(
                 sender, "minecraft:msg Recipient hello");
-        VanillaCommandBypassListener listener = new VanillaCommandBypassListener(null, null);
+        VanillaCommandBypassListener listener = new VanillaCommandBypassListener(
+                null, null, ResponseTestFixtures.responses());
 
         assertNull(listener.onCommand(event));
 

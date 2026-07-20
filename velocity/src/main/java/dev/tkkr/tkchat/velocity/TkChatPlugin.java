@@ -26,6 +26,7 @@ import dev.tkkr.tkchat.velocity.listener.VanillaCommandBypassListener;
 import dev.tkkr.tkchat.velocity.service.VelocityChatService;
 import dev.tkkr.tkchat.velocity.service.ItemLinkService;
 import dev.tkkr.tkchat.velocity.service.PlayerFormattingService;
+import dev.tkkr.tkchat.velocity.service.ResponseService;
 import dev.tkkr.tkchat.velocity.service.NetworkMessageService;
 import dev.tkkr.tkchat.velocity.state.ConversationTracker;
 import dev.tkkr.tkchat.velocity.state.PlayerStateService;
@@ -47,7 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Plugin(
         id = "tkchat",
         name = "tkChat",
-        version = "0.2.0",
+        version = "0.3.0",
         description = "Velocity-led, cross-server channel chat",
         authors = {"tkkr"},
         dependencies = {
@@ -159,6 +160,7 @@ public final class TkChatPlugin {
     private VelocityDeliveryService delivery;
     private VelocityChatService chat;
     private NetworkMessageService networkMessages;
+    private ResponseService responses;
     private SocialSpyService spies;
     private CommandRegistrar commandRegistrar;
     private InfrastructureSnapshot infrastructure;
@@ -186,6 +188,8 @@ public final class TkChatPlugin {
             validateSignedVelocity(config);
             channels = new ChannelRegistry(config.channelDefinitions());
             repository = createRepository(config);
+            responses = new ResponseService(
+                    config.formats.responsePrefix, config.messages);
             access = new VelocityAccessController(config.libertyBans.failClosed);
             states = new PlayerStateService(repository, channels, config.defaultChannel);
             ChatRouter router = new ChatRouter(
@@ -204,21 +208,22 @@ public final class TkChatPlugin {
             itemLinks = new ItemLinkService(proxy, config.itemLinks);
             chat = new VelocityChatService(
                     proxy, router, transport, conversations, itemLinks, formatting,
+                    responses,
                     config.chat.maxPendingMessagesPerSender,
                     java.time.Duration.ofMillis(config.chat.maxMessageAgeMillis));
-            networkMessages = new NetworkMessageService(transport);
+            networkMessages = new NetworkMessageService(transport, itemLinks, formatting);
 
             commandRegistrar = new CommandRegistrar(this, proxy);
             commandRegistrar.register(
                     proxy, channels, states, repository, chat, access, networkMessages, spies,
-                    config, this::reloadConfig);
+                    responses, config, this::reloadConfig);
 
             registerRuntimeListener(itemLinks);
-            registerRuntimeListener(new ChatListener(chat, states));
+            registerRuntimeListener(new ChatListener(chat, states, responses));
             PlayerLifecycleListener lifecycle = new PlayerLifecycleListener(
-                    this, proxy, logger, states, conversations, spies, chat);
+                    this, proxy, logger, states, conversations, spies, chat, responses);
             registerRuntimeListener(lifecycle);
-            registerRuntimeListener(new VanillaCommandBypassListener(proxy, chat));
+            registerRuntimeListener(new VanillaCommandBypassListener(proxy, chat, responses));
             proxy.getAllPlayers().forEach(lifecycle::loadExisting);
 
             infrastructure = InfrastructureSnapshot.from(config);
@@ -256,7 +261,7 @@ public final class TkChatPlugin {
 
             commandRegistrar.register(
                     proxy, replacementChannels, states, repository, chat, access,
-                    networkMessages, spies, config, this::reloadConfig);
+                    networkMessages, spies, responses, config, this::reloadConfig);
             access.reconfigure(config.libertyBans.failClosed);
             itemLinks.reconfigure(config.itemLinks);
             delivery.reconfigure(
@@ -268,6 +273,7 @@ public final class TkChatPlugin {
                     config.chat.maxPendingMessagesPerSender,
                     java.time.Duration.ofMillis(config.chat.maxMessageAgeMillis));
             channels = replacementChannels;
+            responses.reconfigure(config.formats.responsePrefix, config.messages);
 
             CompletionStage<Void> repairs = states.reconfigure(
                     replacementChannels, config.defaultChannel);
@@ -373,6 +379,7 @@ public final class TkChatPlugin {
             }
             repository = null;
         }
+        responses = null;
     }
 
     public boolean isReady() {

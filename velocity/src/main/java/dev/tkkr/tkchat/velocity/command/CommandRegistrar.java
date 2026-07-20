@@ -9,9 +9,11 @@ import dev.tkkr.tkchat.core.service.SocialRepository;
 import dev.tkkr.tkchat.velocity.Permissions;
 import dev.tkkr.tkchat.velocity.config.AppConfig;
 import dev.tkkr.tkchat.velocity.config.ConfigReloadResult;
+import dev.tkkr.tkchat.velocity.config.ResponseKey;
 import dev.tkkr.tkchat.velocity.integration.VelocityAccessController;
 import dev.tkkr.tkchat.velocity.service.NetworkMessageService;
 import dev.tkkr.tkchat.velocity.service.VelocityChatService;
+import dev.tkkr.tkchat.velocity.service.ResponseService;
 import dev.tkkr.tkchat.velocity.state.PlayerStateService;
 import dev.tkkr.tkchat.velocity.state.SocialSpyService;
 
@@ -52,11 +54,13 @@ public final class CommandRegistrar {
             VelocityAccessController access,
             NetworkMessageService networkMessages,
             SocialSpyService spies,
+            ResponseService responses,
             AppConfig config,
             Supplier<CompletionStage<ConfigReloadResult>> reload
     ) {
         List<CommandSpec> specs = specifications(
-                proxy, channels, states, repository, chat, access, networkMessages, spies, config, reload);
+                proxy, channels, states, repository, chat, access, networkMessages,
+                spies, responses, config, reload);
         List<RegisteredCommand> previous = registered;
         previous.forEach(entry -> commands.unregister(entry.meta()));
 
@@ -67,7 +71,7 @@ public final class CommandRegistrar {
                         .aliases(spec.aliases().toArray(String[]::new))
                         .plugin(plugin)
                         .build();
-                SimpleCommand command = permission(spec.permission(), spec.command());
+                SimpleCommand command = permission(spec.permission(), spec.command(), responses);
                 commands.register(meta, command);
                 replacement.add(new RegisteredCommand(meta, command));
             }
@@ -94,42 +98,43 @@ public final class CommandRegistrar {
             VelocityAccessController access,
             NetworkMessageService networkMessages,
             SocialSpyService spies,
+            ResponseService responses,
             AppConfig config,
             Supplier<CompletionStage<ConfigReloadResult>> reload
     ) {
-        ChannelCommand channelCommand = new ChannelCommand(channels, states, access);
+        ChannelCommand channelCommand = new ChannelCommand(channels, states, access, responses);
         LinkedHashMap<String, TkChatCommand.Child> rootChildren = new LinkedHashMap<>();
         ArrayList<CommandSpec> specs = new ArrayList<>();
 
         add(specs, rootChildren, "channel", "channel", Permissions.command("channel"),
                 channelCommand, "ch");
         add(specs, rootChildren, "msg", "message", Permissions.command("message"),
-                new MessageCommand(proxy, chat), "tell", "w", "message");
+                new MessageCommand(proxy, chat, responses), "tell", "w", "message");
         add(specs, rootChildren, "reply", "reply", Permissions.command("reply"),
-                new ReplyCommand(chat), "r");
+                new ReplyCommand(chat, responses), "r");
         add(specs, rootChildren, "group", "group", Permissions.command("group"),
-                new GroupCommand(proxy, repository, chat, states, channels, access), "party");
+                new GroupCommand(proxy, repository, chat, states, channels, access, responses), "party");
         SimpleCommand groupChat = invocation -> {
             if (!(invocation.source() instanceof com.velocitypowered.api.proxy.Player player)) {
-                invocation.source().sendMessage(VelocityChatService.error(
-                        "Only players can use group chat."));
+                invocation.source().sendMessage(responses.message(
+                        ResponseKey.GROUP_CHAT_PLAYER_ONLY));
                 return;
             }
             if (!states.isLoaded(player.getUniqueId())) {
-                player.sendMessage(VelocityChatService.denial(
+                player.sendMessage(responses.denial(
                         dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
                 return;
             }
             if (invocation.arguments().length == 0) {
                 var group = states.group(player.getUniqueId()).orElse(null);
                 if (group == null) {
-                    player.sendMessage(VelocityChatService.error("You are not in a group."));
+                    player.sendMessage(responses.message(ResponseKey.GROUP_NOT_MEMBER));
                 } else {
                     states.setActiveGroup(player.getUniqueId(), group).whenComplete((ignored, error) ->
                             player.sendMessage(error == null
-                                    ? VelocityChatService.success(
-                                            "Active channel set to " + group.name() + ".")
-                                    : VelocityChatService.error("The group channel could not be saved.")));
+                                    ? responses.message(ResponseKey.CHANNEL_ACTIVE_SET,
+                                    ResponseService.text("channel", group.name()))
+                                    : responses.message(ResponseKey.CHANNEL_GROUP_SAVE_FAILED)));
                 }
             } else {
                 chat.group(player, String.join(" ", invocation.arguments()));
@@ -138,26 +143,26 @@ public final class CommandRegistrar {
         add(specs, rootChildren, "groupchat", "groupchat", Permissions.command("groupchat"),
                 groupChat, "gc", "pc");
         add(specs, rootChildren, "ignore", "ignore", Permissions.command("ignore"),
-                new IgnoreCommand(proxy, states), "block");
+                new IgnoreCommand(proxy, states, responses), "block");
         add(specs, rootChildren, "dmtoggle", "dmtoggle", Permissions.command("dmtoggle"),
-                new DirectMessagesToggleCommand(states));
+                new DirectMessagesToggleCommand(states, responses));
         add(specs, rootChildren, "broadcast", "broadcast", Permissions.command("broadcast"),
-                new BroadcastCommand(networkMessages, config.chat), "bc");
+                new BroadcastCommand(networkMessages, config.chat, responses), "bc");
         add(specs, rootChildren, "clearchat", "clearchat", Permissions.command("clearchat"),
-                new ClearChatCommand(networkMessages, channels));
+                new ClearChatCommand(networkMessages, channels, responses));
         add(specs, rootChildren, "socialspy", "socialspy", Permissions.command("socialspy"),
-                new SocialSpyCommand(spies), "spy");
+                new SocialSpyCommand(spies, responses), "spy");
 
         for (var channel : channels.all()) {
             add(specs, rootChildren, channel.id(), channel.id(), Permissions.command("channel"),
-                    new QuickChannelCommand(channel, channelCommand, chat),
+                    new QuickChannelCommand(channel, channelCommand, chat, responses),
                     channel.aliases().toArray(String[]::new));
         }
 
         putRoot(rootChildren, new TkChatCommand.Child(
-                "reload", Permissions.command("reload"), new ReloadCommand(reload)));
+                "reload", Permissions.command("reload"), new ReloadCommand(reload, responses)));
         specs.add(new CommandSpec("tkchat", "", new TkChatCommand(
-                List.copyOf(rootChildren.values())), List.of()));
+                List.copyOf(rootChildren.values()), responses), List.of()));
         return List.copyOf(specs);
     }
 
@@ -186,7 +191,8 @@ public final class CommandRegistrar {
 
     private static SimpleCommand permission(
             String permission,
-            SimpleCommand command
+            SimpleCommand command,
+            ResponseService responses
     ) {
         if (permission == null || permission.isBlank()) {
             return command;
@@ -195,8 +201,8 @@ public final class CommandRegistrar {
             @Override
             public void execute(Invocation invocation) {
                 if (!invocation.source().hasPermission(permission)) {
-                    invocation.source().sendMessage(VelocityChatService.error(
-                            "You do not have permission to use this command."));
+                    invocation.source().sendMessage(responses.message(
+                            ResponseKey.GENERAL_NO_PERMISSION));
                     return;
                 }
                 command.execute(invocation);

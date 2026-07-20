@@ -7,7 +7,7 @@ plugins {
 
 val targets = mapOf(
     "fabric-1-21" to ("1.21" to "0.102.0+1.21"),
-    "fabric-1-21-1" to ("1.21.1" to "0.116.14+1.21.1"),
+    "fabric-1-21-1" to ("1.21.1" to "0.116.13+1.21.1"),
     "fabric-1-21-2" to ("1.21.2" to "0.106.1+1.21.2"),
     "fabric-1-21-3" to ("1.21.3" to "0.114.1+1.21.3"),
     "fabric-1-21-4" to ("1.21.4" to "0.119.4+1.21.4"),
@@ -28,6 +28,7 @@ val (minecraftVersion, fabricApiVersion) = requireNotNull(targets[project.name])
 }
 val javaVersion = if (minecraftVersion.startsWith("26.")) 25 else 21
 val modernMinecraft = minecraftVersion.startsWith("26.")
+val fabricLoaderVersion = if (minecraftVersion == "1.21.1") "0.18.4" else "0.19.3"
 val artifactVersion = project.version.toString()
 
 pluginManager.apply(if (modernMinecraft) "net.fabricmc.fabric-loom" else "fabric-loom")
@@ -55,7 +56,7 @@ dependencies {
         add("mappings", project.extensions.getByType<LoomGradleExtensionAPI>().officialMojangMappings())
     }
     val modConfiguration = if (modernMinecraft) "implementation" else "modImplementation"
-    add(modConfiguration, "net.fabricmc:fabric-loader:0.19.3")
+    add(modConfiguration, "net.fabricmc:fabric-loader:$fabricLoaderVersion")
     add(modConfiguration, "net.fabricmc.fabric-api:fabric-api:$fabricApiVersion")
 }
 
@@ -70,7 +71,8 @@ tasks {
             "version" to artifactVersion,
             "minecraftVersion" to minecraftVersion,
             "javaVersion" to javaVersion,
-            "fabricApiVersion" to fabricApiVersion
+            "fabricApiVersion" to fabricApiVersion,
+            "fabricLoaderVersion" to fabricLoaderVersion
         )
         inputs.properties(resourceProperties)
         expand(resourceProperties)

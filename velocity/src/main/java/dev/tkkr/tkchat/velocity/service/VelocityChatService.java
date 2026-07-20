@@ -9,8 +9,7 @@ import dev.tkkr.tkchat.core.service.ChatRouter;
 import dev.tkkr.tkchat.core.service.MessageTransport;
 import dev.tkkr.tkchat.velocity.state.ConversationTracker;
 import dev.tkkr.tkchat.velocity.Permissions;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import dev.tkkr.tkchat.velocity.config.ResponseKey;
 
 import java.util.Map;
 import java.util.UUID;
@@ -27,6 +26,7 @@ public final class VelocityChatService {
     private final ConversationTracker conversations;
     private final ItemLinkService itemLinks;
     private final PlayerFormattingService formatting;
+    private final ResponseService responses;
     private final PerSenderTaskQueue outbound;
 
     public VelocityChatService(
@@ -36,6 +36,7 @@ public final class VelocityChatService {
             ConversationTracker conversations,
             ItemLinkService itemLinks,
             PlayerFormattingService formatting,
+            ResponseService responses,
             int maxPendingMessagesPerSender,
             Duration maxMessageAge
     ) {
@@ -45,6 +46,7 @@ public final class VelocityChatService {
         this.conversations = conversations;
         this.itemLinks = itemLinks;
         this.formatting = formatting;
+        this.responses = responses;
         this.outbound = new PerSenderTaskQueue(
                 maxPendingMessagesPerSender, maxMessageAge, java.time.Clock.systemUTC());
     }
@@ -87,12 +89,12 @@ public final class VelocityChatService {
     public CompletionStage<Void> reply(Player sender, String content) {
         UUID recipientId = conversations.partner(sender.getUniqueId()).orElse(null);
         if (recipientId == null) {
-            sender.sendMessage(error("There is nobody to reply to."));
+            sender.sendMessage(responses.message(ResponseKey.REPLY_NOBODY));
             return java.util.concurrent.CompletableFuture.completedFuture(null);
         }
         Player recipient = proxy.getPlayer(recipientId).orElse(null);
         if (recipient == null) {
-            sender.sendMessage(error("That player is no longer online."));
+            sender.sendMessage(responses.message(ResponseKey.REPLY_OFFLINE));
             return java.util.concurrent.CompletableFuture.completedFuture(null);
         }
         return direct(sender, recipient, content);
@@ -138,7 +140,7 @@ public final class VelocityChatService {
 
     public CompletionStage<Void> publishOrExplain(Player sender, RouteDecision decision) {
         if (decision instanceof RouteDecision.Denied denied) {
-            sender.sendMessage(denial(denied.reason()));
+            sender.sendMessage(responses.denial(denied.reason()));
             return java.util.concurrent.CompletableFuture.completedFuture(null);
         }
         RouteDecision.Approved approved = (RouteDecision.Approved) decision;
@@ -148,9 +150,10 @@ public final class VelocityChatService {
                     Throwable cause = failure instanceof CompletionException && failure.getCause() != null
                             ? failure.getCause()
                             : failure;
-                    sender.sendMessage(error(cause instanceof ItemLinkService.ItemLinkException
-                            ? cause.getMessage()
-                            : "Chat delivery failed. Please try again."));
+                    sender.sendMessage(responses.message(
+                            cause instanceof ItemLinkService.ItemLinkException
+                                    ? ResponseKey.FEEDBACK_ITEM_LINK_FAILED
+                                    : ResponseKey.FEEDBACK_DELIVERY_FAILED));
                     return null;
                 });
     }
@@ -169,34 +172,7 @@ public final class VelocityChatService {
         outbound.remove(playerId);
     }
 
-    public static Component denial(DenialReason reason) {
-        return error(switch (reason) {
-            case NOT_READY -> "Chat is still starting. Please try again shortly.";
-            case UNKNOWN_CHANNEL -> "That chat channel does not exist.";
-            case NO_PERMISSION -> "You do not have permission to send that message.";
-            case MUTED -> "You are muted.";
-            case LINKS_NOT_ALLOWED -> "You do not have permission to send links.";
-            case RATE_LIMITED -> "You are sending messages too quickly.";
-            case CHAT_BACKLOG_FULL -> "Too many of your messages are still waiting. Please try again shortly.";
-            case MESSAGE_EXPIRED -> "Your message waited too long and was not sent. Please try again.";
-            case INVALID_MESSAGE -> "That message is empty, too long, or contains invalid characters.";
-            case DIRECT_MESSAGES_DISABLED -> "That player has direct messages disabled.";
-            case IGNORED -> "That player is not accepting messages from you.";
-            case NOT_IN_GROUP -> "You are not in a group.";
-            case STORAGE_UNAVAILABLE -> "Chat storage is temporarily unavailable.";
-            case INTERNAL_ERROR -> "Chat moderation is temporarily unavailable.";
-        });
-    }
-
-    public static Component error(String message) {
-        return Component.text(message, NamedTextColor.RED);
-    }
-
-    public static Component success(String message) {
-        return Component.text(message, NamedTextColor.GREEN);
-    }
-
-    private static CompletionStage<Void> handleQueueFailure(
+    private CompletionStage<Void> handleQueueFailure(
             Player sender,
             CompletionStage<Void> stage
     ) {
@@ -205,7 +181,7 @@ public final class VelocityChatService {
             if (rejected == null) {
                 throw new CompletionException(unwrap(error));
             }
-            sender.sendMessage(denial(rejected.reason() == PerSenderTaskQueue.RejectionReason.FULL
+            sender.sendMessage(responses.denial(rejected.reason() == PerSenderTaskQueue.RejectionReason.FULL
                     ? DenialReason.CHAT_BACKLOG_FULL
                     : DenialReason.MESSAGE_EXPIRED));
             return null;

@@ -18,6 +18,7 @@ class ConfigLoaderTest {
     void defaultConfigUsesFreshSchemaAndDerivedPermissions() throws Exception {
         AppConfig config = new ConfigLoader().load(directory);
         String yaml = Files.readString(directory.resolve("config.yml"));
+        String messages = Files.readString(directory.resolve("messages.yml"));
 
         assertTrue(yaml.contains("mariadb:"));
         assertTrue(yaml.contains("rabbitmq:"));
@@ -37,6 +38,11 @@ class ConfigLoaderTest {
         assertEquals(30_000, config.chat.maxDeliveryAgeMillis);
         assertTrue(yaml.contains("socket-timeout-millis: 15000"));
         assertTrue(yaml.contains("max-queued-operations: 1024"));
+        assertTrue(yaml.contains("response-prefix:"));
+        assertTrue(messages.contains("no-permission:"));
+        assertTrue(messages.contains("invite-received:"));
+        assertEquals("<red>Unknown tkChat command.</red>",
+                config.messages.template(ResponseKey.ROOT_UNKNOWN));
     }
 
     @Test

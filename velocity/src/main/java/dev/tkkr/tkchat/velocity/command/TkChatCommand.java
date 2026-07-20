@@ -2,9 +2,8 @@ package dev.tkkr.tkchat.velocity.command;
 
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.command.SimpleCommand;
-import dev.tkkr.tkchat.velocity.service.VelocityChatService;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
+import dev.tkkr.tkchat.velocity.config.ResponseKey;
+import dev.tkkr.tkchat.velocity.service.ResponseService;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -17,8 +16,9 @@ public final class TkChatCommand implements SimpleCommand {
     }
 
     private final Map<String, Child> children;
+    private final ResponseService responses;
 
-    public TkChatCommand(List<Child> children) {
+    public TkChatCommand(List<Child> children, ResponseService responses) {
         LinkedHashMap<String, Child> indexed = new LinkedHashMap<>();
         for (Child child : children) {
             String name = child.name().toLowerCase(Locale.ROOT);
@@ -27,6 +27,7 @@ public final class TkChatCommand implements SimpleCommand {
             }
         }
         this.children = Map.copyOf(indexed);
+        this.responses = responses;
     }
 
     @Override
@@ -38,14 +39,12 @@ public final class TkChatCommand implements SimpleCommand {
         }
         Child child = children.get(arguments[0].toLowerCase(Locale.ROOT));
         if (child == null) {
-            invocation.source().sendMessage(VelocityChatService.error(
-                    "Unknown tkChat command."));
+            invocation.source().sendMessage(responses.message(ResponseKey.ROOT_UNKNOWN));
             showAvailable(invocation.source());
             return;
         }
         if (!invocation.source().hasPermission(child.permission())) {
-            invocation.source().sendMessage(VelocityChatService.error(
-                    "You do not have permission to use this command."));
+            invocation.source().sendMessage(responses.message(ResponseKey.GENERAL_NO_PERMISSION));
             return;
         }
         child.command().execute(childInvocation(invocation, child.name(),
@@ -72,12 +71,12 @@ public final class TkChatCommand implements SimpleCommand {
     private void showAvailable(CommandSource source) {
         List<String> available = available(source);
         if (available.isEmpty()) {
-            source.sendMessage(VelocityChatService.error(
-                    "You do not have permission to use any tkChat commands."));
+            source.sendMessage(responses.message(ResponseKey.ROOT_NO_AVAILABLE));
             return;
         }
-        source.sendMessage(Component.text("tkChat commands: ", NamedTextColor.GRAY)
-                .append(Component.text(String.join(", ", available), NamedTextColor.WHITE)));
+        source.sendMessage(responses.message(
+                ResponseKey.ROOT_AVAILABLE,
+                ResponseService.text("commands", String.join(", ", available))));
     }
 
     private List<String> available(CommandSource source) {

@@ -7,6 +7,8 @@ import com.velocitypowered.api.event.connection.LoginEvent;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import dev.tkkr.tkchat.velocity.service.VelocityChatService;
+import dev.tkkr.tkchat.velocity.service.ResponseService;
+import dev.tkkr.tkchat.velocity.config.ResponseKey;
 import dev.tkkr.tkchat.velocity.state.ConversationTracker;
 import dev.tkkr.tkchat.velocity.state.PlayerStateService;
 import dev.tkkr.tkchat.velocity.state.SocialSpyService;
@@ -31,6 +33,7 @@ public final class PlayerLifecycleListener {
     private final ConversationTracker conversations;
     private final SocialSpyService spies;
     private final VelocityChatService chat;
+    private final ResponseService responses;
     private final AtomicLong nextGeneration = new AtomicLong();
     private final ConcurrentMap<UUID, Long> generations = new ConcurrentHashMap<>();
 
@@ -41,7 +44,8 @@ public final class PlayerLifecycleListener {
             PlayerStateService states,
             ConversationTracker conversations,
             SocialSpyService spies,
-            VelocityChatService chat
+            VelocityChatService chat,
+            ResponseService responses
     ) {
         this.plugin = plugin;
         this.proxy = proxy;
@@ -50,6 +54,7 @@ public final class PlayerLifecycleListener {
         this.conversations = conversations;
         this.spies = spies;
         this.chat = chat;
+        this.responses = responses;
     }
 
     @Subscribe
@@ -60,8 +65,7 @@ public final class PlayerLifecycleListener {
             if (error != null) {
                 logger.warn("Could not load chat state for {}; retrying in the background: {}",
                         player.getUsername(), unwrap(error).toString());
-                player.sendMessage(VelocityChatService.error(
-                        "Chat is temporarily unavailable while your settings are loaded. Retrying automatically."));
+                player.sendMessage(responses.message(ResponseKey.FEEDBACK_STATE_LOAD_FAILED));
                 scheduleRetry(player.getUniqueId(), generation, 0);
             }
             return (Void) null;
@@ -109,7 +113,7 @@ public final class PlayerLifecycleListener {
             }
             if (error == null && states.isLoaded(playerId)) {
                 proxy.getPlayer(playerId).ifPresent(player -> player.sendMessage(
-                        VelocityChatService.success("Chat settings loaded; chat is available again.")));
+                        responses.message(ResponseKey.FEEDBACK_STATE_LOAD_RECOVERED)));
                 return;
             }
             logger.debug("Chat state retry {} failed for {}: {}",

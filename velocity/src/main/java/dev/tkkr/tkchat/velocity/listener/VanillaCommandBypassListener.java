@@ -7,6 +7,8 @@ import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import dev.tkkr.tkchat.velocity.Permissions;
 import dev.tkkr.tkchat.velocity.service.VelocityChatService;
+import dev.tkkr.tkchat.velocity.service.ResponseService;
+import dev.tkkr.tkchat.velocity.config.ResponseKey;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -15,10 +17,16 @@ import java.util.concurrent.CompletableFuture;
 public final class VanillaCommandBypassListener {
     private final ProxyServer proxy;
     private final VelocityChatService chat;
+    private final ResponseService responses;
 
-    public VanillaCommandBypassListener(ProxyServer proxy, VelocityChatService chat) {
+    public VanillaCommandBypassListener(
+            ProxyServer proxy,
+            VelocityChatService chat,
+            ResponseService responses
+    ) {
         this.proxy = proxy;
         this.chat = chat;
+        this.responses = responses;
     }
 
     @Subscribe
@@ -38,17 +46,16 @@ public final class VanillaCommandBypassListener {
         }
         event.setResult(CommandExecuteEvent.CommandResult.denied());
         if (!sender.hasPermission(Permissions.command("message"))) {
-            sender.sendMessage(VelocityChatService.error(
-                    "You do not have permission to use this command."));
+            sender.sendMessage(responses.message(ResponseKey.GENERAL_NO_PERMISSION));
             return null;
         }
         if (parts.length < 3) {
-            sender.sendMessage(VelocityChatService.error("Usage: /msg <player> <message>"));
+            sender.sendMessage(responses.message(ResponseKey.DIRECT_USAGE));
             return null;
         }
         Player recipient = proxy.getPlayer(parts[1]).orElse(null);
         if (recipient == null || recipient.equals(sender)) {
-            sender.sendMessage(VelocityChatService.error("That player is not available."));
+            sender.sendMessage(responses.message(ResponseKey.DIRECT_UNAVAILABLE));
             return null;
         }
         CompletableFuture<Void> future = chat.direct(sender, recipient,

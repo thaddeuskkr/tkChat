@@ -63,6 +63,8 @@ liberty-bans:
   fail-closed: true
 
 formats:
+  # Prepended to every command response. Set to '' to disable it.
+  response-prefix: '<gradient:#55FFFF:#55FF55><bold>tkChat</bold></gradient> <dark_gray>»</dark_gray> '
   direct-incoming: '<dark_gray>[</dark_gray><light_purple>DM from <name></light_purple><dark_gray>]</dark_gray> <message>'
   direct-outgoing: '<dark_gray>[</dark_gray><light_purple>DM to <target></light_purple><dark_gray>]</dark_gray> <message>'
   group: '<dark_gray>[</dark_gray><aqua><target></aqua><dark_gray>]</dark_gray> <prefix><name><suffix><dark_gray>: </dark_gray><message>'

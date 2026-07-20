@@ -1,0 +1,139 @@
+# Command responses use MiniMessage. Dynamic placeholders such as <player>, <group>,
+# <channel>, <commands>, <visibility>, <button>, <max_length>, and <sections> are
+# available only in the responses where they appear below.
+general:
+  no-permission: '<red>You do not have permission to use this command.</red>'
+
+root:
+  unknown: '<red>Unknown tkChat command.</red>'
+  no-available: '<red>You do not have permission to use any tkChat commands.</red>'
+  available: '<gray>tkChat commands: <white><commands></white></gray>'
+
+channel:
+  player-only: '<red>Only players can select a chat channel.</red>'
+  status-active: '<gray>Active channel: <green><channel></green></gray>'
+  status-available: '<gray>Channels: <white><channels></white></gray>'
+  usage: '<red>Usage: /channel <channel></red>'
+  active-set: '<green>Active channel set to <channel>.</green>'
+  group-save-failed: '<red>The group channel could not be saved.</red>'
+  unknown: '<red>Unknown channel. Available: <channels></red>'
+  no-access: '<red>You cannot use that channel.</red>'
+  save-failed: '<red>The channel could not be saved.</red>'
+  quick-player-only: '<red>Only players can use quick channel commands.</red>'
+
+direct:
+  player-only: '<red>Only players can send direct messages.</red>'
+  usage: '<red>Usage: /msg <player> <message></red>'
+  offline: '<red>That player is not online.</red>'
+  unavailable: '<red>That player is not available.</red>'
+  self: '<red>You cannot message yourself.</red>'
+
+reply:
+  player-only: '<red>Only players can reply.</red>'
+  usage: '<red>Usage: /reply <message></red>'
+  nobody: '<red>There is nobody to reply to.</red>'
+  offline: '<red>That player is no longer online.</red>'
+
+dm-toggle:
+  player-only: '<red>Only players have DM settings.</red>'
+  enabled: '<green>Direct messages are now enabled.</green>'
+  disabled: '<green>Direct messages are now disabled.</green>'
+  failed: '<red>DM settings could not be changed.</red>'
+
+ignore:
+  usage: '<red>Usage: /ignore <player></red>'
+  unavailable: '<red>That player is not available.</red>'
+  failed: '<red>Ignore settings could not be changed.</red>'
+  enabled: '<green>Now ignoring <player>.</green>'
+  disabled: '<green>No longer ignoring <player>.</green>'
+
+group:
+  player-only: '<red>Only players can manage groups.</red>'
+  chat-player-only: '<red>Only players can use group chat.</red>'
+  storage-unavailable: '<red>Group storage is unavailable.</red>'
+  status-none: '<gray>You are not in a group. Use /group list to browse public groups.</gray>'
+  status-member: '<gray>Group: <aqua><group></aqua> <dark_gray>· <visibility></dark_gray> <button></gray>'
+  create-usage: '<red>Usage: /group create <name> [password]</red>'
+  invalid-name: '<red>Group names must match [A-Za-z0-9_-]{1,32}.</red>'
+  invalid-password: '<red>Passwords must be 4-64 characters without whitespace.</red>'
+  reserved-name: '<red>That name is reserved by a configured channel.</red>'
+  created: '<green>Created <visibility> group <group>.</green> <button>'
+  list-empty: '<gray>There are no joinable groups.</gray>'
+  list-heading-public: '<gray>Public groups:</gray>'
+  list-heading-all: '<gray>Groups:</gray>'
+  list-entry: '<dark_gray> • </dark_gray><aqua><group></aqua> <dark_gray>(<visibility>)</dark_gray> <button>'
+  join-usage: '<red>Usage: /group join <name> [password]</red>'
+  invite-usage: '<red>Usage: /group invite <player></red>'
+  target-unavailable: '<red>That player is not available.</red>'
+  invite-sent: '<green>Invited <player>.</green>'
+  invite-received: '<aqua><player> invited you to <white><group></white>.</aqua> <button>'
+  accept-usage: '<red>Usage: /group accept <name></red>'
+  joined: '<green>Joined <group>.</green> <button>'
+  disband-notice: '<yellow>Group <group> was disbanded.</yellow>'
+  disbanded: '<green>Disbanded <group>.</green>'
+  left: '<green>You left <group>.</green>'
+  chat-usage: '<red>Usage: /group chat <message></red>'
+  not-member: '<red>You are not in a group.</red>'
+  root-usage: '<red>Usage: /group <create|list|join|invite|accept|leave|chat></red>'
+  failure:
+    name-taken: '<red>A group with that name already exists.</red>'
+    already-member: '<red>You or the target player is already in a group.</red>'
+    not-found: '<red>That group does not exist.</red>'
+    invite-required: '<red>That private group requires an invitation.</red>'
+    invalid-password: '<red>That group password is incorrect.</red>'
+    invite-expired: '<red>That invitation is missing or expired.</red>'
+    not-member: '<red>You are not in a group.</red>'
+    not-owner: '<red>Only the group owner can do that.</red>'
+  action:
+    accept-label: '<green><bold>[Accept]</bold></green>'
+    accept-hover: '<gray>Accept this invitation</gray>'
+    join-label: '<green><bold>[Join]</bold></green>'
+    join-hover: '<gray>Join <group></gray>'
+    join-private-hover: '<gray>Private groups require a password or invitation</gray>'
+    switch-label: '<green><bold>[Switch channel]</bold></green>'
+    switch-hover: '<gray>Make <group> your active channel</gray>'
+
+broadcast:
+  usage: '<red>Usage: /broadcast <message> (maximum <max_length> characters)</red>'
+  failed: '<red>The broadcast could not be delivered.</red>'
+
+clear-chat:
+  usage: '<red>Usage: /clearchat <channel></red>'
+  unknown: '<red>Unknown channel. Use /clearchat <channel>.</red>'
+  player-required: '<red>A server-scoped channel can only be cleared by a connected player.</red>'
+  failed: '<red>Chat could not be cleared.</red>'
+
+social-spy:
+  player-only: '<red>Only players can use social spy.</red>'
+  usage: '<red>Usage: /socialspy [on|off]</red>'
+  enabled: '<green>Social spy enabled.</green>'
+  disabled: '<green>Social spy disabled.</green>'
+
+reload:
+  usage: '<red>Usage: /tkchat reload</red>'
+  failed: '<red>tkChat config reload failed. Check the proxy console.</red>'
+  success: '<green>tkChat config reloaded.</green>'
+  restart-required: '<yellow>Restart Velocity to apply changes to: <sections>.</yellow>'
+
+denial:
+  not-ready: '<red>Chat is still starting. Please try again shortly.</red>'
+  unknown-channel: '<red>That chat channel does not exist.</red>'
+  no-permission: '<red>You do not have permission to send that message.</red>'
+  muted: '<red>You are muted.</red>'
+  links-not-allowed: '<red>You do not have permission to send links.</red>'
+  rate-limited: '<red>You are sending messages too quickly.</red>'
+  backlog-full: '<red>Too many of your messages are still waiting. Please try again shortly.</red>'
+  message-expired: '<red>Your message waited too long and was not sent. Please try again.</red>'
+  invalid-message: '<red>That message is empty, too long, or contains invalid characters.</red>'
+  direct-disabled: '<red>That player has direct messages disabled.</red>'
+  ignored: '<red>That player is not accepting messages from you.</red>'
+  not-in-group: '<red>You are not in a group.</red>'
+  storage-unavailable: '<red>Chat storage is temporarily unavailable.</red>'
+  internal-error: '<red>Chat moderation is temporarily unavailable.</red>'
+
+feedback:
+  moderation-failed: '<red>Chat moderation failed. Your message was not sent.</red>'
+  delivery-failed: '<red>Chat delivery failed. Please try again.</red>'
+  item-link-failed: '<red>The item could not be linked. Please try again.</red>'
+  state-load-failed: '<red>Chat is temporarily unavailable while your settings are loaded. Retrying automatically.</red>'
+  state-load-recovered: '<green>Chat settings loaded; chat is available again.</green>'

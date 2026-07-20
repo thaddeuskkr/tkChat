@@ -8,6 +8,8 @@ import com.velocitypowered.api.proxy.Player;
 import dev.tkkr.tkchat.core.model.RouteDecision;
 import dev.tkkr.tkchat.core.service.GroupChannels;
 import dev.tkkr.tkchat.velocity.service.VelocityChatService;
+import dev.tkkr.tkchat.velocity.service.ResponseService;
+import dev.tkkr.tkchat.velocity.config.ResponseKey;
 import dev.tkkr.tkchat.velocity.state.PlayerStateService;
 
 import java.util.concurrent.CompletableFuture;
@@ -15,10 +17,16 @@ import java.util.concurrent.CompletableFuture;
 public final class ChatListener {
     private final VelocityChatService chat;
     private final PlayerStateService states;
+    private final ResponseService responses;
 
-    public ChatListener(VelocityChatService chat, PlayerStateService states) {
+    public ChatListener(
+            VelocityChatService chat,
+            PlayerStateService states,
+            ResponseService responses
+    ) {
         this.chat = chat;
         this.states = states;
+        this.responses = responses;
     }
 
     @Subscribe(priority = Short.MIN_VALUE / 2)
@@ -31,10 +39,10 @@ public final class ChatListener {
         CompletableFuture<Void> completion = decisionStage.handle((decision, error) -> {
                     denyVanillaChat(event);
                     if (error != null) {
-                        player.sendMessage(VelocityChatService.error(
-                                "Chat moderation failed. Your message was not sent."));
+                        player.sendMessage(responses.message(
+                                ResponseKey.FEEDBACK_MODERATION_FAILED));
                     } else if (decision instanceof RouteDecision.Denied denied) {
-                        player.sendMessage(VelocityChatService.denial(denied.reason()));
+                        player.sendMessage(responses.denial(denied.reason()));
                     }
                     return (Void) null;
                 })

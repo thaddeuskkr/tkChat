@@ -1,5 +1,6 @@
 package dev.tkkr.tkchat.velocity.config;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import dev.tkkr.tkchat.core.model.ChannelDefinition;
 import dev.tkkr.tkchat.core.model.ChannelScope;
 import dev.tkkr.tkchat.core.service.ChannelRegistry;
@@ -22,6 +23,8 @@ public final class AppConfig {
     public LibertyBans libertyBans = new LibertyBans();
     public Formats formats = new Formats();
     public List<Channel> channels = new ArrayList<>();
+    @JsonIgnore
+    public ResponseMessages messages;
 
     public void validate() {
         if (instanceId == null || instanceId.isBlank()) {
@@ -98,6 +101,9 @@ public final class AppConfig {
         }
         if (itemLinks.responseTimeoutMillis < 100 || itemLinks.responseTimeoutMillis > 10_000) {
             throw new IllegalArgumentException("item-links.response-timeout-millis must be between 100 and 10000");
+        }
+        if (formats.responsePrefix == null) {
+            throw new IllegalArgumentException("formats.response-prefix cannot be null");
         }
     }
 
@@ -179,6 +185,8 @@ public final class AppConfig {
     }
 
     public static final class Formats {
+        public String responsePrefix = "<gradient:#55FFFF:#55FF55><bold>tkChat</bold></gradient> "
+                + "<dark_gray>»</dark_gray> ";
         public String directIncoming = "<dark_gray>[</dark_gray><light_purple>DM from <name></light_purple><dark_gray>]</dark_gray> <message>";
         public String directOutgoing = "<dark_gray>[</dark_gray><light_purple>DM to <target></light_purple><dark_gray>]</dark_gray> <message>";
         public String group = "<dark_gray>[</dark_gray><aqua><target></aqua><dark_gray>]</dark_gray> <prefix><name><suffix><dark_gray>: </dark_gray><message>";

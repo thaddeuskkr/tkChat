@@ -1,0 +1,133 @@
+package dev.tkkr.tkchat.velocity.config;
+
+public enum ResponseKey {
+    GENERAL_NO_PERMISSION("general.no-permission"),
+
+    ROOT_UNKNOWN("root.unknown"),
+    ROOT_NO_AVAILABLE("root.no-available"),
+    ROOT_AVAILABLE("root.available"),
+
+    CHANNEL_PLAYER_ONLY("channel.player-only"),
+    CHANNEL_STATUS_ACTIVE("channel.status-active"),
+    CHANNEL_STATUS_AVAILABLE("channel.status-available"),
+    CHANNEL_USAGE("channel.usage"),
+    CHANNEL_ACTIVE_SET("channel.active-set"),
+    CHANNEL_GROUP_SAVE_FAILED("channel.group-save-failed"),
+    CHANNEL_UNKNOWN("channel.unknown"),
+    CHANNEL_NO_ACCESS("channel.no-access"),
+    CHANNEL_SAVE_FAILED("channel.save-failed"),
+    CHANNEL_QUICK_PLAYER_ONLY("channel.quick-player-only"),
+
+    DIRECT_PLAYER_ONLY("direct.player-only"),
+    DIRECT_USAGE("direct.usage"),
+    DIRECT_OFFLINE("direct.offline"),
+    DIRECT_UNAVAILABLE("direct.unavailable"),
+    DIRECT_SELF("direct.self"),
+    REPLY_PLAYER_ONLY("reply.player-only"),
+    REPLY_USAGE("reply.usage"),
+    REPLY_NOBODY("reply.nobody"),
+    REPLY_OFFLINE("reply.offline"),
+
+    DM_TOGGLE_PLAYER_ONLY("dm-toggle.player-only"),
+    DM_TOGGLE_ENABLED("dm-toggle.enabled"),
+    DM_TOGGLE_DISABLED("dm-toggle.disabled"),
+    DM_TOGGLE_FAILED("dm-toggle.failed"),
+
+    IGNORE_USAGE("ignore.usage"),
+    IGNORE_UNAVAILABLE("ignore.unavailable"),
+    IGNORE_FAILED("ignore.failed"),
+    IGNORE_ENABLED("ignore.enabled"),
+    IGNORE_DISABLED("ignore.disabled"),
+
+    GROUP_PLAYER_ONLY("group.player-only"),
+    GROUP_CHAT_PLAYER_ONLY("group.chat-player-only"),
+    GROUP_STORAGE_UNAVAILABLE("group.storage-unavailable"),
+    GROUP_STATUS_NONE("group.status-none"),
+    GROUP_STATUS_MEMBER("group.status-member"),
+    GROUP_CREATE_USAGE("group.create-usage"),
+    GROUP_INVALID_NAME("group.invalid-name"),
+    GROUP_INVALID_PASSWORD("group.invalid-password"),
+    GROUP_RESERVED_NAME("group.reserved-name"),
+    GROUP_CREATED("group.created"),
+    GROUP_LIST_EMPTY("group.list-empty"),
+    GROUP_LIST_HEADING_PUBLIC("group.list-heading-public"),
+    GROUP_LIST_HEADING_ALL("group.list-heading-all"),
+    GROUP_LIST_ENTRY("group.list-entry"),
+    GROUP_JOIN_USAGE("group.join-usage"),
+    GROUP_INVITE_USAGE("group.invite-usage"),
+    GROUP_TARGET_UNAVAILABLE("group.target-unavailable"),
+    GROUP_INVITE_SENT("group.invite-sent"),
+    GROUP_INVITE_RECEIVED("group.invite-received"),
+    GROUP_ACCEPT_USAGE("group.accept-usage"),
+    GROUP_JOINED("group.joined"),
+    GROUP_DISBAND_NOTICE("group.disband-notice"),
+    GROUP_DISBANDED("group.disbanded"),
+    GROUP_LEFT("group.left"),
+    GROUP_CHAT_USAGE("group.chat-usage"),
+    GROUP_NOT_MEMBER("group.not-member"),
+    GROUP_ROOT_USAGE("group.root-usage"),
+    GROUP_FAILURE_NAME_TAKEN("group.failure.name-taken"),
+    GROUP_FAILURE_ALREADY_MEMBER("group.failure.already-member"),
+    GROUP_FAILURE_NOT_FOUND("group.failure.not-found"),
+    GROUP_FAILURE_INVITE_REQUIRED("group.failure.invite-required"),
+    GROUP_FAILURE_INVALID_PASSWORD("group.failure.invalid-password"),
+    GROUP_FAILURE_INVITE_EXPIRED("group.failure.invite-expired"),
+    GROUP_FAILURE_NOT_MEMBER("group.failure.not-member"),
+    GROUP_FAILURE_NOT_OWNER("group.failure.not-owner"),
+    GROUP_ACTION_ACCEPT_LABEL("group.action.accept-label"),
+    GROUP_ACTION_ACCEPT_HOVER("group.action.accept-hover"),
+    GROUP_ACTION_JOIN_LABEL("group.action.join-label"),
+    GROUP_ACTION_JOIN_HOVER("group.action.join-hover"),
+    GROUP_ACTION_JOIN_PRIVATE_HOVER("group.action.join-private-hover"),
+    GROUP_ACTION_SWITCH_LABEL("group.action.switch-label"),
+    GROUP_ACTION_SWITCH_HOVER("group.action.switch-hover"),
+
+    BROADCAST_USAGE("broadcast.usage"),
+    BROADCAST_FAILED("broadcast.failed"),
+
+    CLEAR_USAGE("clear-chat.usage"),
+    CLEAR_UNKNOWN("clear-chat.unknown"),
+    CLEAR_PLAYER_REQUIRED("clear-chat.player-required"),
+    CLEAR_FAILED("clear-chat.failed"),
+
+    SOCIAL_SPY_PLAYER_ONLY("social-spy.player-only"),
+    SOCIAL_SPY_USAGE("social-spy.usage"),
+    SOCIAL_SPY_ENABLED("social-spy.enabled"),
+    SOCIAL_SPY_DISABLED("social-spy.disabled"),
+
+    RELOAD_USAGE("reload.usage"),
+    RELOAD_FAILED("reload.failed"),
+    RELOAD_SUCCESS("reload.success"),
+    RELOAD_RESTART_REQUIRED("reload.restart-required"),
+
+    DENIAL_NOT_READY("denial.not-ready"),
+    DENIAL_UNKNOWN_CHANNEL("denial.unknown-channel"),
+    DENIAL_NO_PERMISSION("denial.no-permission"),
+    DENIAL_MUTED("denial.muted"),
+    DENIAL_LINKS_NOT_ALLOWED("denial.links-not-allowed"),
+    DENIAL_RATE_LIMITED("denial.rate-limited"),
+    DENIAL_BACKLOG_FULL("denial.backlog-full"),
+    DENIAL_MESSAGE_EXPIRED("denial.message-expired"),
+    DENIAL_INVALID_MESSAGE("denial.invalid-message"),
+    DENIAL_DIRECT_DISABLED("denial.direct-disabled"),
+    DENIAL_IGNORED("denial.ignored"),
+    DENIAL_NOT_IN_GROUP("denial.not-in-group"),
+    DENIAL_STORAGE_UNAVAILABLE("denial.storage-unavailable"),
+    DENIAL_INTERNAL_ERROR("denial.internal-error"),
+
+    FEEDBACK_MODERATION_FAILED("feedback.moderation-failed"),
+    FEEDBACK_DELIVERY_FAILED("feedback.delivery-failed"),
+    FEEDBACK_ITEM_LINK_FAILED("feedback.item-link-failed"),
+    FEEDBACK_STATE_LOAD_FAILED("feedback.state-load-failed"),
+    FEEDBACK_STATE_LOAD_RECOVERED("feedback.state-load-recovered");
+
+    private final String path;
+
+    ResponseKey(String path) {
+        this.path = path;
+    }
+
+    public String path() {
+        return path;
+    }
+}

@@ -3,6 +3,8 @@ package dev.tkkr.tkchat.velocity.command;
 import com.velocitypowered.api.command.SimpleCommand;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import dev.tkkr.tkchat.velocity.config.ResponseKey;
+import dev.tkkr.tkchat.velocity.service.ResponseService;
 import dev.tkkr.tkchat.velocity.service.VelocityChatService;
 
 import java.util.Arrays;
@@ -11,30 +13,32 @@ import java.util.List;
 public final class MessageCommand implements SimpleCommand {
     private final ProxyServer proxy;
     private final VelocityChatService chat;
+    private final ResponseService responses;
 
-    public MessageCommand(ProxyServer proxy, VelocityChatService chat) {
+    public MessageCommand(ProxyServer proxy, VelocityChatService chat, ResponseService responses) {
         this.proxy = proxy;
         this.chat = chat;
+        this.responses = responses;
     }
 
     @Override
     public void execute(Invocation invocation) {
         if (!(invocation.source() instanceof Player sender)) {
-            invocation.source().sendMessage(VelocityChatService.error("Only players can send direct messages."));
+            invocation.source().sendMessage(responses.message(ResponseKey.DIRECT_PLAYER_ONLY));
             return;
         }
         String[] arguments = invocation.arguments();
         if (arguments.length < 2) {
-            sender.sendMessage(VelocityChatService.error("Usage: /msg <player> <message>"));
+            sender.sendMessage(responses.message(ResponseKey.DIRECT_USAGE));
             return;
         }
         Player recipient = proxy.getPlayer(arguments[0]).orElse(null);
         if (recipient == null) {
-            sender.sendMessage(VelocityChatService.error("That player is not online."));
+            sender.sendMessage(responses.message(ResponseKey.DIRECT_OFFLINE));
             return;
         }
         if (recipient.getUniqueId().equals(sender.getUniqueId())) {
-            sender.sendMessage(VelocityChatService.error("You cannot message yourself."));
+            sender.sendMessage(responses.message(ResponseKey.DIRECT_SELF));
             return;
         }
         chat.direct(sender, recipient, String.join(" ", Arrays.copyOfRange(arguments, 1, arguments.length)));

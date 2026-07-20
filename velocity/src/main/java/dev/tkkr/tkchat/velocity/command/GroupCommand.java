@@ -13,14 +13,14 @@ import dev.tkkr.tkchat.core.service.GroupNames;
 import dev.tkkr.tkchat.core.service.GroupPasswords;
 import dev.tkkr.tkchat.core.service.SocialRepository;
 import dev.tkkr.tkchat.velocity.Permissions;
+import dev.tkkr.tkchat.velocity.config.ResponseKey;
 import dev.tkkr.tkchat.velocity.integration.VelocityAccessController;
+import dev.tkkr.tkchat.velocity.service.ResponseService;
 import dev.tkkr.tkchat.velocity.service.VelocityChatService;
 import dev.tkkr.tkchat.velocity.state.PlayerStateService;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
-import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -35,6 +35,7 @@ public final class GroupCommand implements SimpleCommand {
     private final PlayerStateService states;
     private final ChannelRegistry channels;
     private final VelocityAccessController access;
+    private final ResponseService responses;
 
     public GroupCommand(
             ProxyServer proxy,
@@ -42,7 +43,8 @@ public final class GroupCommand implements SimpleCommand {
             VelocityChatService chat,
             PlayerStateService states,
             ChannelRegistry channels,
-            VelocityAccessController access
+            VelocityAccessController access,
+            ResponseService responses
     ) {
         this.proxy = proxy;
         this.repository = repository;
@@ -50,17 +52,17 @@ public final class GroupCommand implements SimpleCommand {
         this.states = states;
         this.channels = channels;
         this.access = access;
+        this.responses = responses;
     }
 
     @Override
     public void execute(Invocation invocation) {
         if (!(invocation.source() instanceof Player player)) {
-            invocation.source().sendMessage(VelocityChatService.error("Only players can manage groups."));
+            invocation.source().sendMessage(responses.message(ResponseKey.GROUP_PLAYER_ONLY));
             return;
         }
         if (!states.isLoaded(player.getUniqueId())) {
-            player.sendMessage(VelocityChatService.denial(
-                    dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
+            player.sendMessage(responses.denial(dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
             return;
         }
         String[] args = invocation.arguments();
@@ -83,25 +85,24 @@ public final class GroupCommand implements SimpleCommand {
     private void showStatus(Player player) {
         repository.groupForMember(player.getUniqueId()).whenComplete((membership, error) -> {
             if (error != null) {
-                player.sendMessage(VelocityChatService.error("Group storage is unavailable."));
+                player.sendMessage(responses.message(ResponseKey.GROUP_STORAGE_UNAVAILABLE));
             } else if (membership.isEmpty()) {
-                player.sendMessage(Component.text("You are not in a group. Use /group list to browse public groups.",
-                        NamedTextColor.GRAY));
+                player.sendMessage(responses.message(ResponseKey.GROUP_STATUS_NONE));
             } else {
                 Group group = membership.get().group();
-                player.sendMessage(Component.text("Group: ", NamedTextColor.GRAY)
-                        .append(Component.text(group.name(), NamedTextColor.AQUA))
-                        .append(Component.text(" · " + group.visibility().name().toLowerCase(Locale.ROOT),
-                                NamedTextColor.DARK_GRAY))
-                        .append(Component.space())
-                        .append(switchButton(group)));
+                player.sendMessage(responses.message(
+                        ResponseKey.GROUP_STATUS_MEMBER,
+                        ResponseService.text("group", group.name()),
+                        ResponseService.text("visibility",
+                                group.visibility().name().toLowerCase(Locale.ROOT)),
+                        ResponseService.component("button", switchButton(group))));
             }
         });
     }
 
     private void create(Player player, String[] args) {
         if (args.length < 2 || args.length > 3) {
-            player.sendMessage(VelocityChatService.error("Usage: /group create <name> [password]"));
+            player.sendMessage(responses.message(ResponseKey.GROUP_CREATE_USAGE));
             return;
         }
         String name = args[1];
@@ -111,15 +112,20 @@ public final class GroupCommand implements SimpleCommand {
         String normalizedName;
         try {
             normalizedName = GroupNames.normalize(name);
-            if (visibility == GroupVisibility.PRIVATE) {
-                GroupPasswords.validate(password);
-            }
         } catch (IllegalArgumentException invalid) {
-            player.sendMessage(VelocityChatService.error(invalid.getMessage()));
+            player.sendMessage(responses.message(ResponseKey.GROUP_INVALID_NAME));
             return;
         }
+        if (visibility == GroupVisibility.PRIVATE) {
+            try {
+                GroupPasswords.validate(password);
+            } catch (IllegalArgumentException invalid) {
+                player.sendMessage(responses.message(ResponseKey.GROUP_INVALID_PASSWORD));
+                return;
+            }
+        }
         if (normalizedName.equals("group") || channels.find(normalizedName).isPresent()) {
-            player.sendMessage(VelocityChatService.error("That name is reserved by a configured channel."));
+            player.sendMessage(responses.message(ResponseKey.GROUP_RESERVED_NAME));
             return;
         }
 
@@ -130,9 +136,11 @@ public final class GroupCommand implements SimpleCommand {
                         return;
                     }
                     states.setGroupMembership(player.getUniqueId(), group, GroupRole.OWNER);
-                    player.sendMessage(VelocityChatService.success("Created "
-                                    + visibility.name().toLowerCase(Locale.ROOT) + " group " + group.name() + ".")
-                            .append(Component.space()).append(switchButton(group)));
+                    player.sendMessage(responses.message(
+                            ResponseKey.GROUP_CREATED,
+                            ResponseService.text("visibility", visibility.name().toLowerCase(Locale.ROOT)),
+                            ResponseService.text("group", group.name()),
+                            ResponseService.component("button", switchButton(group))));
                 });
     }
 
@@ -140,25 +148,27 @@ public final class GroupCommand implements SimpleCommand {
         boolean includePrivate = isGroupAdmin(player);
         repository.listGroups(includePrivate).whenComplete((groups, error) -> {
             if (error != null) {
-                player.sendMessage(VelocityChatService.error("Group storage is unavailable."));
+                player.sendMessage(responses.message(ResponseKey.GROUP_STORAGE_UNAVAILABLE));
                 return;
             }
             if (groups.isEmpty()) {
-                player.sendMessage(Component.text("There are no joinable groups.", NamedTextColor.GRAY));
+                player.sendMessage(responses.message(ResponseKey.GROUP_LIST_EMPTY));
                 return;
             }
-            player.sendMessage(Component.text(includePrivate ? "Groups:" : "Public groups:", NamedTextColor.GRAY));
-            groups.forEach(group -> player.sendMessage(Component.text(" • ", NamedTextColor.DARK_GRAY)
-                    .append(Component.text(group.name(), NamedTextColor.AQUA))
-                    .append(Component.text(" (" + group.visibility().name().toLowerCase(Locale.ROOT) + ") ",
-                            NamedTextColor.DARK_GRAY))
-                    .append(joinButton(group, includePrivate))));
+            player.sendMessage(responses.message(includePrivate
+                    ? ResponseKey.GROUP_LIST_HEADING_ALL
+                    : ResponseKey.GROUP_LIST_HEADING_PUBLIC));
+            groups.forEach(group -> player.sendMessage(responses.message(
+                    ResponseKey.GROUP_LIST_ENTRY,
+                    ResponseService.text("group", group.name()),
+                    ResponseService.text("visibility", group.visibility().name().toLowerCase(Locale.ROOT)),
+                    ResponseService.component("button", joinButton(group, includePrivate)))));
         });
     }
 
     private void join(Player player, String[] args) {
         if (args.length < 2 || args.length > 3) {
-            player.sendMessage(VelocityChatService.error("Usage: /group join <name> [password]"));
+            player.sendMessage(responses.message(ResponseKey.GROUP_JOIN_USAGE));
             return;
         }
         boolean bypass = isGroupAdmin(player);
@@ -169,12 +179,12 @@ public final class GroupCommand implements SimpleCommand {
 
     private void invite(Player player, String[] args) {
         if (args.length != 2) {
-            player.sendMessage(VelocityChatService.error("Usage: /group invite <player>"));
+            player.sendMessage(responses.message(ResponseKey.GROUP_INVITE_USAGE));
             return;
         }
         Player target = proxy.getPlayer(args[1]).orElse(null);
         if (target == null || target.equals(player)) {
-            player.sendMessage(VelocityChatService.error("That player is not available."));
+            player.sendMessage(responses.message(ResponseKey.GROUP_TARGET_UNAVAILABLE));
             return;
         }
         repository.groupForMember(player.getUniqueId()).thenCompose(membership -> {
@@ -185,12 +195,14 @@ public final class GroupCommand implements SimpleCommand {
             return repository.invite(group.id(), player.getUniqueId(), target.getUniqueId(),
                             Instant.now().plus(Duration.ofMinutes(5)))
                     .thenRun(() -> {
-                        player.sendMessage(VelocityChatService.success("Invited " + target.getUsername() + "."));
-                        target.sendMessage(Component.text(player.getUsername() + " invited you to ",
-                                        NamedTextColor.AQUA)
-                                .append(Component.text(group.name(), NamedTextColor.WHITE))
-                                .append(Component.text(". ", NamedTextColor.AQUA))
-                                .append(acceptButton(group)));
+                        player.sendMessage(responses.message(
+                                ResponseKey.GROUP_INVITE_SENT,
+                                ResponseService.text("player", target.getUsername())));
+                        target.sendMessage(responses.message(
+                                ResponseKey.GROUP_INVITE_RECEIVED,
+                                ResponseService.text("player", player.getUsername()),
+                                ResponseService.text("group", group.name()),
+                                ResponseService.component("button", acceptButton(group))));
                     });
         }).exceptionally(error -> {
             sendFailure(player, error);
@@ -200,7 +212,7 @@ public final class GroupCommand implements SimpleCommand {
 
     private void accept(Player player, String[] args) {
         if (args.length != 2) {
-            player.sendMessage(VelocityChatService.error("Usage: /group accept <name>"));
+            player.sendMessage(responses.message(ResponseKey.GROUP_ACCEPT_USAGE));
             return;
         }
         repository.acceptInvite(player.getUniqueId(), args[1], Instant.now())
@@ -213,8 +225,10 @@ public final class GroupCommand implements SimpleCommand {
             return;
         }
         states.setGroupMembership(player.getUniqueId(), group, GroupRole.MEMBER);
-        player.sendMessage(VelocityChatService.success("Joined " + group.name() + ".")
-                .append(Component.space()).append(switchButton(group)));
+        player.sendMessage(responses.message(
+                ResponseKey.GROUP_JOINED,
+                ResponseService.text("group", group.name()),
+                ResponseService.component("button", switchButton(group))));
     }
 
     private void leave(Player player) {
@@ -226,66 +240,78 @@ public final class GroupCommand implements SimpleCommand {
             result.affectedMembers().forEach(memberId -> {
                 states.clearGroupMembership(memberId, result.group().id());
                 if (result.deleted() && !memberId.equals(player.getUniqueId())) {
-                    proxy.getPlayer(memberId).ifPresent(member -> member.sendMessage(
-                            Component.text("Group " + result.group().name() + " was disbanded.",
-                                    NamedTextColor.YELLOW)));
+                    proxy.getPlayer(memberId).ifPresent(member -> member.sendMessage(responses.message(
+                            ResponseKey.GROUP_DISBAND_NOTICE,
+                            ResponseService.text("group", result.group().name()))));
                 }
             });
-            player.sendMessage(result.deleted()
-                    ? VelocityChatService.success("Disbanded " + result.group().name() + ".")
-                    : VelocityChatService.success("You left " + result.group().name() + "."));
+            player.sendMessage(responses.message(
+                    result.deleted() ? ResponseKey.GROUP_DISBANDED : ResponseKey.GROUP_LEFT,
+                    ResponseService.text("group", result.group().name())));
         });
     }
 
     private void groupChat(Player player, String[] args) {
         if (args.length < 2) {
-            player.sendMessage(VelocityChatService.error("Usage: /group chat <message>"));
+            player.sendMessage(responses.message(ResponseKey.GROUP_CHAT_USAGE));
             return;
         }
         chat.group(player, String.join(" ", java.util.Arrays.copyOfRange(args, 1, args.length)));
     }
 
     private Component acceptButton(Group group) {
-        return actionButton("[Accept]", "/tkchat group accept " + group.normalizedName(),
-                "Accept this invitation");
+        return actionButton(
+                ResponseKey.GROUP_ACTION_ACCEPT_LABEL,
+                "/tkchat group accept " + group.normalizedName(),
+                ResponseKey.GROUP_ACTION_ACCEPT_HOVER,
+                group);
     }
 
     private Component joinButton(Group group, boolean bypass) {
         String command = "/tkchat group join " + group.normalizedName();
-        String hover = group.visibility() == GroupVisibility.PRIVATE && !bypass
-                ? "Private groups require a password or invitation"
-                : "Join " + group.name();
-        return actionButton("[Join]", command, hover);
+        ResponseKey hover = group.visibility() == GroupVisibility.PRIVATE && !bypass
+                ? ResponseKey.GROUP_ACTION_JOIN_PRIVATE_HOVER
+                : ResponseKey.GROUP_ACTION_JOIN_HOVER;
+        return actionButton(ResponseKey.GROUP_ACTION_JOIN_LABEL, command, hover, group);
     }
 
     private Component switchButton(Group group) {
-        return actionButton("[Switch channel]", "/tkchat channel " + group.normalizedName(),
-                "Make " + group.name() + " your active channel");
+        return actionButton(
+                ResponseKey.GROUP_ACTION_SWITCH_LABEL,
+                "/tkchat channel " + group.normalizedName(),
+                ResponseKey.GROUP_ACTION_SWITCH_HOVER,
+                group);
     }
 
-    private static Component actionButton(String label, String command, String hover) {
-        return Component.text(label, NamedTextColor.GREEN)
-                .decorate(TextDecoration.BOLD)
+    private Component actionButton(
+            ResponseKey label,
+            String command,
+            ResponseKey hover,
+            Group group
+    ) {
+        return responses.content(label, ResponseService.text("group", group.name()))
                 .clickEvent(ClickEvent.runCommand(command))
-                .hoverEvent(HoverEvent.showText(Component.text(hover, NamedTextColor.GRAY)));
+                .hoverEvent(HoverEvent.showText(responses.content(
+                        hover,
+                        ResponseService.text("group", group.name()))));
     }
 
     private void sendFailure(Player player, Throwable error) {
         Throwable cause = unwrap(error);
         if (cause instanceof GroupException groupError) {
-            player.sendMessage(VelocityChatService.error(switch (groupError.failure()) {
-                case NAME_TAKEN -> "A group with that name already exists.";
-                case ALREADY_MEMBER -> "You or the target player is already in a group.";
-                case NOT_FOUND -> "That group does not exist.";
-                case INVITE_REQUIRED -> "That private group requires an invitation.";
-                case INVALID_PASSWORD -> "That group password is incorrect.";
-                case INVITE_MISSING_OR_EXPIRED -> "That invitation is missing or expired.";
-                case NOT_MEMBER -> "You are not in a group.";
-                case NOT_OWNER -> "Only the group owner can do that.";
+            player.sendMessage(responses.message(switch (groupError.failure()) {
+                case NAME_TAKEN -> ResponseKey.GROUP_FAILURE_NAME_TAKEN;
+                case ALREADY_MEMBER -> ResponseKey.GROUP_FAILURE_ALREADY_MEMBER;
+                case NOT_FOUND -> ResponseKey.GROUP_FAILURE_NOT_FOUND;
+                case INVITE_REQUIRED -> ResponseKey.GROUP_FAILURE_INVITE_REQUIRED;
+                case INVALID_PASSWORD -> ResponseKey.GROUP_FAILURE_INVALID_PASSWORD;
+                case INVITE_MISSING_OR_EXPIRED -> ResponseKey.GROUP_FAILURE_INVITE_EXPIRED;
+                case NOT_MEMBER -> ResponseKey.GROUP_FAILURE_NOT_MEMBER;
+                case NOT_OWNER -> ResponseKey.GROUP_FAILURE_NOT_OWNER;
             }));
             return;
         }
-        player.sendMessage(VelocityChatService.error("Group storage is unavailable."));
+        player.sendMessage(responses.message(ResponseKey.GROUP_STORAGE_UNAVAILABLE));
     }
 
     private static Throwable unwrap(Throwable error) {
@@ -301,9 +327,8 @@ public final class GroupCommand implements SimpleCommand {
         return access.hasPermission(player, Permissions.BYPASS_PRIVATE_GROUPS);
     }
 
-    private static void usage(Player player) {
-        player.sendMessage(VelocityChatService.error(
-                "Usage: /group <create|list|join|invite|accept|leave|chat>"));
+    private void usage(Player player) {
+        player.sendMessage(responses.message(ResponseKey.GROUP_ROOT_USAGE));
     }
 
     @Override
