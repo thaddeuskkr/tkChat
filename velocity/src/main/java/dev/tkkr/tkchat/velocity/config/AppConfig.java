@@ -17,7 +17,7 @@ public final class AppConfig {
     public Chat chat = new Chat();
     public Mentions mentions = new Mentions();
     public ItemLinks itemLinks = new ItemLinks();
-    public MongoDb mongodb = new MongoDb();
+    public MariaDb mariadb = new MariaDb();
     public RabbitMq rabbitmq = new RabbitMq();
     public LibertyBans libertyBans = new LibertyBans();
     public Formats formats = new Formats();
@@ -35,28 +35,41 @@ public final class AppConfig {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "default-channel must name a configured channel or alias"));
         defaultChannel = configuredDefault.id();
-        if (mongodb.enabled && (mongodb.connectionString == null
-                || !mongodb.connectionString.startsWith("mongodb"))) {
-            throw new IllegalArgumentException("mongodb.connection-string must be a MongoDB URI");
+        if (mariadb.enabled && (mariadb.jdbcUrl == null
+                || !mariadb.jdbcUrl.startsWith("jdbc:mariadb://"))) {
+            throw new IllegalArgumentException("mariadb.jdbc-url must be a MariaDB JDBC URL");
         }
-        if (mongodb.enabled && (mongodb.database == null || mongodb.database.isBlank())) {
-            throw new IllegalArgumentException("mongodb.database cannot be blank");
+        if (mariadb.enabled && (mariadb.username == null || mariadb.username.isBlank())) {
+            throw new IllegalArgumentException("mariadb.username cannot be blank");
         }
-        if (mongodb.collectionPrefix == null || mongodb.collectionPrefix.isBlank()) {
-            throw new IllegalArgumentException("mongodb.collection-prefix cannot be blank");
-        }
-        if (mongodb.serverSelectionTimeoutMillis < 100
-                || mongodb.connectTimeoutMillis < 100
-                || mongodb.readTimeoutMillis < 100
-                || mongodb.operationTimeoutMillis < 100) {
-            throw new IllegalArgumentException("MongoDB timeouts must be at least 100 milliseconds");
-        }
-        if (mongodb.workerThreads < 1 || mongodb.workerThreads > 32) {
-            throw new IllegalArgumentException("mongodb.worker-threads must be between 1 and 32");
-        }
-        if (mongodb.maxQueuedOperations < 1 || mongodb.maxQueuedOperations > 10_000) {
+        if (mariadb.tablePrefix == null || !mariadb.tablePrefix.matches("[A-Za-z0-9_]{1,32}")) {
             throw new IllegalArgumentException(
-                    "mongodb.max-queued-operations must be between 1 and 10000");
+                    "mariadb.table-prefix must contain 1-32 letters, numbers, or underscores");
+        }
+        if (mariadb.connectionTimeoutMillis < 250
+                || mariadb.validationTimeoutMillis < 250
+                || mariadb.connectTimeoutMillis < 100
+                || mariadb.socketTimeoutMillis < 100) {
+            throw new IllegalArgumentException("MariaDB timeouts are too short");
+        }
+        if (mariadb.validationTimeoutMillis > mariadb.connectionTimeoutMillis) {
+            throw new IllegalArgumentException(
+                    "mariadb.validation-timeout-millis cannot exceed connection-timeout-millis");
+        }
+        if (mariadb.idleTimeoutMillis < 10_000 || mariadb.maxLifetimeMillis < 30_000) {
+            throw new IllegalArgumentException(
+                    "MariaDB idle timeout must be at least 10000ms and max lifetime at least 30000ms");
+        }
+        if (mariadb.maximumPoolSize < 1 || mariadb.maximumPoolSize > 64
+                || mariadb.minimumIdle < 0 || mariadb.minimumIdle > mariadb.maximumPoolSize) {
+            throw new IllegalArgumentException("Invalid MariaDB connection pool sizes");
+        }
+        if (mariadb.workerThreads < 1 || mariadb.workerThreads > 64) {
+            throw new IllegalArgumentException("mariadb.worker-threads must be between 1 and 64");
+        }
+        if (mariadb.maxQueuedOperations < 1 || mariadb.maxQueuedOperations > 100_000) {
+            throw new IllegalArgumentException(
+                    "mariadb.max-queued-operations must be between 1 and 100000");
         }
         if (chat.clearLines < 1 || chat.clearLines > 200) {
             throw new IllegalArgumentException("chat.clear-lines must be between 1 and 200");
@@ -133,18 +146,23 @@ public final class AppConfig {
         public long responseTimeoutMillis = 1_500;
     }
 
-    public static final class MongoDb {
+    public static final class MariaDb {
         public boolean enabled = true;
         public boolean fallbackToMemory = false;
-        public String connectionString = "mongodb://127.0.0.1:27017/?authSource=admin";
-        public String database = "tkchat";
-        public String collectionPrefix = "tkchat";
-        public long serverSelectionTimeoutMillis = 10_000;
+        public String jdbcUrl = "jdbc:mariadb://127.0.0.1:3306/tkchat";
+        public String username = "tkchat";
+        public String password = "";
+        public String tablePrefix = "tkchat";
+        public int maximumPoolSize = 8;
+        public int minimumIdle = 2;
+        public long connectionTimeoutMillis = 10_000;
+        public long validationTimeoutMillis = 5_000;
+        public long idleTimeoutMillis = 600_000;
+        public long maxLifetimeMillis = 1_800_000;
         public long connectTimeoutMillis = 10_000;
-        public long readTimeoutMillis = 10_000;
-        public long operationTimeoutMillis = 15_000;
-        public int workerThreads = 4;
-        public int maxQueuedOperations = 256;
+        public long socketTimeoutMillis = 15_000;
+        public int workerThreads = 8;
+        public int maxQueuedOperations = 1_024;
     }
 
     public static final class RabbitMq {

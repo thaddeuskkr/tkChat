@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -57,6 +58,45 @@ class ChatRouterTest {
                 router.routeChannel(sender(), "global", "hello").toCompletableFuture().join());
 
         assertEquals(DenialReason.MUTED, denied.reason());
+    }
+
+    @Test
+    void deniesChatUntilTheSendersCompleteStateIsReady() throws Exception {
+        AtomicInteger authorizationCalls = new AtomicInteger();
+        AccessController access = (sender, permission, bypassPermission, containsLink) -> {
+            authorizationCalls.incrementAndGet();
+            return CompletableFuture.completedFuture(AccessDecision.allow("", ""));
+        };
+        ChatStateProvider unavailable = new ChatStateProvider() {
+            @Override
+            public boolean ready(UUID playerId) {
+                return false;
+            }
+
+            @Override
+            public java.util.concurrent.CompletionStage<DirectState> directState(
+                    UUID recipientId, UUID senderId, String defaultChannel) {
+                throw new AssertionError("Direct state should not be read");
+            }
+
+            @Override
+            public java.util.concurrent.CompletionStage<java.util.Optional<GroupState>> groupState(
+                    UUID playerId) {
+                throw new AssertionError("Group state should not be read");
+            }
+        };
+        ChatRouter router = new ChatRouter(
+                new ChannelRegistry(List.of(new ChannelDefinition(
+                        "global", "Global", ChannelScope.GLOBAL,
+                        "send", "receive", "bypass", List.of(), "<message>"))),
+                access, unavailable, new ChatPolicy(256, 5, Duration.ofSeconds(5)),
+                Clock.fixed(NOW, ZoneOffset.UTC), "bypass");
+
+        RouteDecision.Denied denied = assertInstanceOf(RouteDecision.Denied.class,
+                router.routeChannel(sender(), "global", "hello").toCompletableFuture().join());
+
+        assertEquals(DenialReason.NOT_READY, denied.reason());
+        assertEquals(0, authorizationCalls.get());
     }
 
     @Test

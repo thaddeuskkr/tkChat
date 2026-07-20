@@ -150,6 +150,9 @@ public final class ChatRouter {
     }
 
     private RouteDecision validate(SenderContext sender, String content) {
+        if (!chatState.ready(sender.playerId())) {
+            return new RouteDecision.Denied(DenialReason.NOT_READY, "");
+        }
         if (content == null || content.isBlank() || content.length() > policy.maxMessageLength()) {
             return new RouteDecision.Denied(DenialReason.INVALID_MESSAGE, "");
         }

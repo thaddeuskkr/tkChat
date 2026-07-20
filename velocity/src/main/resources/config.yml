@@ -29,19 +29,25 @@ item-links:
   format: '<aqua>[<amount>x <item_name>]</aqua>'
   response-timeout-millis: 1500
 
-mongodb:
+mariadb:
   enabled: true
   fallback-to-memory: false
-  # TKCHAT_MONGODB_URI overrides this value, keeping credentials out of this file.
-  connection-string: mongodb://127.0.0.1:27017/?authSource=admin
-  database: tkchat
-  collection-prefix: tkchat
-  server-selection-timeout-millis: 10000
+  # TKCHAT_MARIADB_URL, TKCHAT_MARIADB_USERNAME, and TKCHAT_MARIADB_PASSWORD
+  # override these values, keeping production credentials out of this file.
+  jdbc-url: jdbc:mariadb://127.0.0.1:3306/tkchat
+  username: tkchat
+  password: ''
+  table-prefix: tkchat
+  maximum-pool-size: 8
+  minimum-idle: 2
+  connection-timeout-millis: 10000
+  validation-timeout-millis: 5000
+  idle-timeout-millis: 600000
+  max-lifetime-millis: 1800000
   connect-timeout-millis: 10000
-  read-timeout-millis: 10000
-  operation-timeout-millis: 15000
-  worker-threads: 4
-  max-queued-operations: 256
+  socket-timeout-millis: 15000
+  worker-threads: 8
+  max-queued-operations: 1024
 
 rabbitmq:
   # A single Velocity process delivers locally and does not need RabbitMQ.

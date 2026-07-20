@@ -179,6 +179,9 @@ public final class VelocityDeliveryService {
                             .equals(message.senderServerId()))
                     .orElse(false);
         }
+        if (!states.isLoaded(player.getUniqueId())) {
+            return false;
+        }
         if (message.routeKind() != RouteKind.CHANNEL) {
             if (!message.recipients().contains(player.getUniqueId())) {
                 return false;

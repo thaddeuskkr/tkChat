@@ -19,6 +19,11 @@ public interface ChatStateProvider {
         }
     }
 
+    /** Whether this player's complete online state is safe to use for sending chat. */
+    default boolean ready(UUID playerId) {
+        return true;
+    }
+
     CompletionStage<DirectState> directState(
             UUID recipientId,
             UUID senderId,

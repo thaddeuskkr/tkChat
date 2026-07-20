@@ -25,9 +25,17 @@ public final class ConfigLoader {
             }
         }
         AppConfig config = mapper.readValue(configPath.toFile(), AppConfig.class);
-        String mongoUri = System.getenv("TKCHAT_MONGODB_URI");
-        if (mongoUri != null && !mongoUri.isBlank()) {
-            config.mongodb.connectionString = mongoUri;
+        String mariaUrl = System.getenv("TKCHAT_MARIADB_URL");
+        if (mariaUrl != null && !mariaUrl.isBlank()) {
+            config.mariadb.jdbcUrl = mariaUrl;
+        }
+        String mariaUsername = System.getenv("TKCHAT_MARIADB_USERNAME");
+        if (mariaUsername != null && !mariaUsername.isBlank()) {
+            config.mariadb.username = mariaUsername;
+        }
+        String mariaPassword = System.getenv("TKCHAT_MARIADB_PASSWORD");
+        if (mariaPassword != null) {
+            config.mariadb.password = mariaPassword;
         }
         String rabbitUri = System.getenv("TKCHAT_RABBITMQ_URI");
         if (rabbitUri != null && !rabbitUri.isBlank()) {

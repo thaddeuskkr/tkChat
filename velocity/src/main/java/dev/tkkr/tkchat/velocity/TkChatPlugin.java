@@ -30,7 +30,7 @@ import dev.tkkr.tkchat.velocity.service.NetworkMessageService;
 import dev.tkkr.tkchat.velocity.state.ConversationTracker;
 import dev.tkkr.tkchat.velocity.state.PlayerStateService;
 import dev.tkkr.tkchat.velocity.state.SocialSpyService;
-import dev.tkkr.tkchat.velocity.storage.MongoSocialRepository;
+import dev.tkkr.tkchat.velocity.storage.MariaDbSocialRepository;
 import dev.tkkr.tkchat.velocity.transport.RabbitMessageTransport;
 import org.slf4j.Logger;
 
@@ -59,17 +59,22 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class TkChatPlugin {
     private record InfrastructureSnapshot(
             String instanceId,
-            boolean mongodbEnabled,
-            boolean mongodbFallbackToMemory,
-            String mongodbConnectionString,
-            String mongodbDatabase,
-            String mongodbCollectionPrefix,
-            long mongodbServerSelectionTimeoutMillis,
-            long mongodbConnectTimeoutMillis,
-            long mongodbReadTimeoutMillis,
-            long mongodbOperationTimeoutMillis,
-            int mongodbWorkerThreads,
-            int mongodbMaxQueuedOperations,
+            boolean mariadbEnabled,
+            boolean mariadbFallbackToMemory,
+            String mariadbJdbcUrl,
+            String mariadbUsername,
+            String mariadbPassword,
+            String mariadbTablePrefix,
+            int mariadbMaximumPoolSize,
+            int mariadbMinimumIdle,
+            long mariadbConnectionTimeoutMillis,
+            long mariadbValidationTimeoutMillis,
+            long mariadbIdleTimeoutMillis,
+            long mariadbMaxLifetimeMillis,
+            long mariadbConnectTimeoutMillis,
+            long mariadbSocketTimeoutMillis,
+            int mariadbWorkerThreads,
+            int mariadbMaxQueuedOperations,
             boolean rabbitmqEnabled,
             boolean rabbitmqFallbackToLocal,
             String rabbitmqUri,
@@ -80,17 +85,22 @@ public final class TkChatPlugin {
         private static InfrastructureSnapshot from(AppConfig config) {
             return new InfrastructureSnapshot(
                     config.instanceId,
-                    config.mongodb.enabled,
-                    config.mongodb.fallbackToMemory,
-                    config.mongodb.connectionString,
-                    config.mongodb.database,
-                    config.mongodb.collectionPrefix,
-                    config.mongodb.serverSelectionTimeoutMillis,
-                    config.mongodb.connectTimeoutMillis,
-                    config.mongodb.readTimeoutMillis,
-                    config.mongodb.operationTimeoutMillis,
-                    config.mongodb.workerThreads,
-                    config.mongodb.maxQueuedOperations,
+                    config.mariadb.enabled,
+                    config.mariadb.fallbackToMemory,
+                    config.mariadb.jdbcUrl,
+                    config.mariadb.username,
+                    config.mariadb.password,
+                    config.mariadb.tablePrefix,
+                    config.mariadb.maximumPoolSize,
+                    config.mariadb.minimumIdle,
+                    config.mariadb.connectionTimeoutMillis,
+                    config.mariadb.validationTimeoutMillis,
+                    config.mariadb.idleTimeoutMillis,
+                    config.mariadb.maxLifetimeMillis,
+                    config.mariadb.connectTimeoutMillis,
+                    config.mariadb.socketTimeoutMillis,
+                    config.mariadb.workerThreads,
+                    config.mariadb.maxQueuedOperations,
                     config.rabbitmq.enabled,
                     config.rabbitmq.fallbackToLocal,
                     config.rabbitmq.uri,
@@ -105,18 +115,23 @@ public final class TkChatPlugin {
             if (!Objects.equals(instanceId, next.instanceId)) {
                 changed.add("instance-id");
             }
-            if (mongodbEnabled != next.mongodbEnabled
-                    || mongodbFallbackToMemory != next.mongodbFallbackToMemory
-                    || !Objects.equals(mongodbConnectionString, next.mongodbConnectionString)
-                    || !Objects.equals(mongodbDatabase, next.mongodbDatabase)
-                    || !Objects.equals(mongodbCollectionPrefix, next.mongodbCollectionPrefix)
-                    || mongodbServerSelectionTimeoutMillis != next.mongodbServerSelectionTimeoutMillis
-                    || mongodbConnectTimeoutMillis != next.mongodbConnectTimeoutMillis
-                    || mongodbReadTimeoutMillis != next.mongodbReadTimeoutMillis
-                    || mongodbOperationTimeoutMillis != next.mongodbOperationTimeoutMillis
-                    || mongodbWorkerThreads != next.mongodbWorkerThreads
-                    || mongodbMaxQueuedOperations != next.mongodbMaxQueuedOperations) {
-                changed.add("mongodb");
+            if (mariadbEnabled != next.mariadbEnabled
+                    || mariadbFallbackToMemory != next.mariadbFallbackToMemory
+                    || !Objects.equals(mariadbJdbcUrl, next.mariadbJdbcUrl)
+                    || !Objects.equals(mariadbUsername, next.mariadbUsername)
+                    || !Objects.equals(mariadbPassword, next.mariadbPassword)
+                    || !Objects.equals(mariadbTablePrefix, next.mariadbTablePrefix)
+                    || mariadbMaximumPoolSize != next.mariadbMaximumPoolSize
+                    || mariadbMinimumIdle != next.mariadbMinimumIdle
+                    || mariadbConnectionTimeoutMillis != next.mariadbConnectionTimeoutMillis
+                    || mariadbValidationTimeoutMillis != next.mariadbValidationTimeoutMillis
+                    || mariadbIdleTimeoutMillis != next.mariadbIdleTimeoutMillis
+                    || mariadbMaxLifetimeMillis != next.mariadbMaxLifetimeMillis
+                    || mariadbConnectTimeoutMillis != next.mariadbConnectTimeoutMillis
+                    || mariadbSocketTimeoutMillis != next.mariadbSocketTimeoutMillis
+                    || mariadbWorkerThreads != next.mariadbWorkerThreads
+                    || mariadbMaxQueuedOperations != next.mariadbMaxQueuedOperations) {
+                changed.add("mariadb");
             }
             if (rabbitmqEnabled != next.rabbitmqEnabled
                     || rabbitmqFallbackToLocal != next.rabbitmqFallbackToLocal
@@ -200,9 +215,11 @@ public final class TkChatPlugin {
 
             registerRuntimeListener(itemLinks);
             registerRuntimeListener(new ChatListener(chat, states));
-            registerRuntimeListener(new PlayerLifecycleListener(states, conversations, spies, chat));
+            PlayerLifecycleListener lifecycle = new PlayerLifecycleListener(
+                    this, proxy, logger, states, conversations, spies, chat);
+            registerRuntimeListener(lifecycle);
             registerRuntimeListener(new VanillaCommandBypassListener(proxy, chat));
-            proxy.getAllPlayers().forEach(player -> states.load(player.getUniqueId()));
+            proxy.getAllPlayers().forEach(lifecycle::loadExisting);
 
             infrastructure = InfrastructureSnapshot.from(config);
             ready = true;
@@ -281,17 +298,17 @@ public final class TkChatPlugin {
     }
 
     private SocialRepository createRepository(AppConfig config) throws Exception {
-        if (!config.mongodb.enabled) {
-            logger.warn("MongoDB is disabled; groups and settings will be lost when Velocity restarts.");
+        if (!config.mariadb.enabled) {
+            logger.warn("MariaDB is disabled; groups and settings will be lost when Velocity restarts.");
             return new InMemorySocialRepository(config.defaultChannel);
         }
         try {
-            return new MongoSocialRepository(config.mongodb, config.defaultChannel);
+            return new MariaDbSocialRepository(config.mariadb, config.defaultChannel);
         } catch (Exception error) {
-            if (!config.mongodb.fallbackToMemory) {
+            if (!config.mariadb.fallbackToMemory) {
                 throw error;
             }
-            logger.error("MongoDB is unavailable; using volatile in-memory storage as configured.", error);
+            logger.error("MariaDB is unavailable; using volatile in-memory storage as configured.", error);
             return new InMemorySocialRepository(config.defaultChannel);
         }
     }

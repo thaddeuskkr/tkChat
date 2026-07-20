@@ -115,6 +115,11 @@ public final class CommandRegistrar {
                         "Only players can use group chat."));
                 return;
             }
+            if (!states.isLoaded(player.getUniqueId())) {
+                player.sendMessage(VelocityChatService.denial(
+                        dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
+                return;
+            }
             if (invocation.arguments().length == 0) {
                 var group = states.group(player.getUniqueId()).orElse(null);
                 if (group == null) {

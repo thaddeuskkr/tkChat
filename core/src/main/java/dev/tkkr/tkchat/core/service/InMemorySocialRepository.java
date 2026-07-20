@@ -62,6 +62,36 @@ public final class InMemorySocialRepository implements SocialRepository {
     }
 
     @Override
+    public synchronized CompletionStage<Void> setActiveGroupChannel(UUID playerId, UUID groupId) {
+        GroupMembership membership = memberships.get(playerId);
+        if (membership == null || !membership.group().id().equals(groupId)) {
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("Player is not in that group"));
+        }
+        settings.compute(playerId, (id, previous) -> new PlayerSettings(
+                id, GroupChannels.id(groupId),
+                previous == null || previous.directMessagesEnabled()));
+        return completed(null);
+    }
+
+    @Override
+    public CompletionStage<Boolean> compareAndSetActiveChannel(
+            UUID playerId,
+            String expectedChannelId,
+            String channelId
+    ) {
+        java.util.concurrent.atomic.AtomicBoolean changed = new java.util.concurrent.atomic.AtomicBoolean();
+        settings.computeIfPresent(playerId, (id, previous) -> {
+            if (!previous.activeChannel().equals(expectedChannelId)) {
+                return previous;
+            }
+            changed.set(true);
+            return new PlayerSettings(id, channelId, previous.directMessagesEnabled());
+        });
+        return completed(changed.get());
+    }
+
+    @Override
     public CompletionStage<Void> setDirectMessagesEnabled(UUID playerId, boolean enabled) {
         settings.compute(playerId, (id, previous) -> new PlayerSettings(id,
                 previous == null ? defaultChannel : previous.activeChannel(), enabled));

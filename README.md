@@ -2,7 +2,7 @@
 
 tkChat is a Velocity-led Minecraft network chat system for Paper and Fabric servers. Velocity is
 the trust boundary: it checks LuckPerms and LibertyBans before routing global channels, server-local
-chat, groups, and direct messages. MongoDB stores social state and player preferences. RabbitMQ is
+chat, groups, and direct messages. MariaDB stores social state and player preferences. RabbitMQ is
 available for multi-proxy fan-out, but is disabled by default for a single Velocity process.
 
 This repository targets every Java Edition release from Minecraft 1.21 through 26.2. It produces:
@@ -35,7 +35,7 @@ evaluates permissions and mutes, and inserts player input only as literal text.
 - Velocity player-info forwarding configured for production. Fabric needs a compatible forwarding
   solution; SignedVelocity synchronizes chat decisions but does not forward player identities.
 - LuckPerms and LibertyBans on Velocity
-- MongoDB (recommended and enabled by default; standalone servers are supported)
+- MariaDB 10.6+ (enabled by default)
 - RabbitMQ (optional; only needed when multiple Velocity processes must fan out chat)
 - Java 21 for Minecraft 1.21.x and Java 25 for Minecraft 26.x
 
@@ -64,22 +64,23 @@ when invoking the complete matrix.
 
 ## Live integration verification
 
-The single-proxy path was exercised on July 20, 2026 using two authenticated Prism Launcher
+The gameplay and single-proxy transport path was exercised on July 20, 2026 using two authenticated Prism Launcher
 clients, Velocity 4.1.0-SNAPSHOT build 9, two Fabric 26.2 backends, Fabric API 0.155.2+26.2,
 FabricProxy-Lite 2.12.0, the local SignedVelocity 1.4.2-SNAPSHOT proxy/Fabric artifacts,
-LibertyBans 1.2.0-M1-SNAPSHOT, and a remote standalone MongoDB 8-compatible server. RabbitMQ was
-disabled.
+LibertyBans 1.2.0-M1-SNAPSHOT. RabbitMQ was disabled.
 
 The controlled run verified global chat in both directions between different backends, local-chat
 server isolation, direct messages and replies, group create/invite/accept/chat across backends,
-LibertyBans mute rejection, and persisted MongoDB group/settings documents. FabricProxy-Lite was
+and LibertyBans mute rejection. FabricProxy-Lite was
 first run with its default configuration to generate `config/FabricProxy-Lite.toml`; both backends
 then used Velocity modern forwarding with the same generated forwarding secret,
 `hackOnlineMode = true`, and `hackMessageChain = true`. Both clients retained their forwarded
 Mojang identities, switched backends without a public-key or message-chain rejection, and rendered
-the local route only on the correct backend after the switch. MongoDB records were written under
-the forwarded Mojang UUIDs. All current channel deliveries are intentionally rendered as
-server-authored messages.
+the local route only on the correct backend after the switch. Persistent records used the
+forwarded Mojang UUIDs. All current channel deliveries are intentionally rendered as server-authored
+messages. The MariaDB repository has separate live integration coverage for schema creation, complete
+login snapshots, password and invitation rules, atomic disband cleanup, and concurrent membership
+constraints.
 
 ## Installation
 
@@ -87,11 +88,11 @@ server-authored messages.
 2. Put the matching Paper or exact-version Fabric artifact on every backend.
 3. Keep SignedVelocity installed on the proxy and all backends.
 4. Start Velocity once to generate `plugins/tkchat/config.yml`.
-5. Configure MongoDB in `mongodb`, preferably by supplying credentials through the
-   `TKCHAT_MONGODB_URI` environment variable.
+5. Configure MariaDB in `mariadb`, preferably by supplying credentials through
+   `TKCHAT_MARIADB_URL`, `TKCHAT_MARIADB_USERNAME`, and `TKCHAT_MARIADB_PASSWORD`.
 6. Leave RabbitMQ disabled for one Velocity process, or configure a unique `instance-id` and
    RabbitMQ URI for a multi-proxy network.
-7. Restart Velocity. Collections and indexes are created automatically.
+7. Restart Velocity. The required InnoDB tables, keys, and indexes are created automatically.
 
 Use a unique RabbitMQ `instance-id` per Velocity process. Each instance receives its own queue;
 sharing a queue name would load-balance messages instead of broadcasting them.
@@ -198,7 +199,7 @@ aliases remain available when another plugin has not claimed them.
 Reloading applies channels, channel command aliases, the default channel, chat limits and rate
 limits, formats, mentions, item links, clear-chat settings, SignedVelocity enforcement, and the
 LibertyBans fail-closed setting. Players whose selected channel was removed are moved to the new
-default channel. Changes to `instance-id`, `mongodb`, or `rabbitmq` are validated but require a
+default channel. Changes to `instance-id`, `mariadb`, or `rabbitmq` are validated but require a
 Velocity restart because they own long-lived storage or transport connections; the command reports
 those sections after an otherwise successful reload.
 
@@ -208,7 +209,9 @@ namespaced vanilla bypass.
 Group names are unique case-insensitively and match `[A-Za-z0-9_-]{1,32}`. A member's group appears
 in `/channel` under its normalized name, so `/channel builders` switches normal chat into the
 `Builders` group. Private-group passwords are stored only as salted PBKDF2-SHA256 hashes;
-invitations bypass the password and expire after five minutes.
+invitations bypass the password and expire after five minutes. MariaDB enforces unique normalized
+group names and one group membership per player. Group creation, joining, leaving, disbanding,
+invitation consumption, and affected active-channel repairs are transactional.
 
 ## Chat features
 
@@ -235,8 +238,12 @@ are intentionally outside the current scope.
 ## Failure behavior
 
 - LibertyBans is fail-closed by default: a failed mute lookup rejects the message.
-- MongoDB startup failure prevents tkChat from registering chat listeners unless
-  `mongodb.fallback-to-memory` is explicitly enabled.
+- MariaDB startup failure prevents tkChat from registering chat listeners unless
+  `mariadb.fallback-to-memory` is explicitly enabled.
+- Login waits for one complete transactional social-state snapshot. If that read fails, chat and
+  state-changing chat commands fail closed for that player while background retries run; broadcasts
+  and chat clearing still work. Disconnect/reconnect generations prevent a late read from restoring
+  an old session.
 - RabbitMQ may fall back to delivery inside the current Velocity process. Disable
   `rabbitmq.fallback-to-local` when a multi-proxy network should fail closed instead.
 - Live RabbitMQ messages expire after 60 seconds to avoid replaying stale chat after downtime.

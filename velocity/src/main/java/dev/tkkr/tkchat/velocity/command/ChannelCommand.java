@@ -37,6 +37,11 @@ public final class ChannelCommand implements SimpleCommand {
             invocation.source().sendMessage(VelocityChatService.error("Only players can select a chat channel."));
             return;
         }
+        if (!states.isLoaded(player.getUniqueId())) {
+            player.sendMessage(VelocityChatService.denial(
+                    dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
+            return;
+        }
         String[] arguments = invocation.arguments();
         if (arguments.length == 0) {
             player.sendMessage(Component.text("Active channel: ", NamedTextColor.GRAY)
@@ -82,6 +87,11 @@ public final class ChannelCommand implements SimpleCommand {
     }
 
     void select(Player player, ChannelDefinition channel) {
+        if (!states.isLoaded(player.getUniqueId())) {
+            player.sendMessage(VelocityChatService.denial(
+                    dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
+            return;
+        }
         if (!canUse(player, channel)) {
             player.sendMessage(VelocityChatService.error("You cannot use that channel."));
             return;

@@ -5,6 +5,7 @@ import dev.tkkr.tkchat.core.model.GroupLeaveResult;
 import dev.tkkr.tkchat.core.model.GroupMembership;
 import dev.tkkr.tkchat.core.model.GroupVisibility;
 import dev.tkkr.tkchat.core.model.PlayerSettings;
+import dev.tkkr.tkchat.core.model.PlayerSocialState;
 
 import java.time.Instant;
 import java.util.List;
@@ -12,13 +13,50 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CompletableFuture;
 
 public interface SocialRepository extends AutoCloseable {
     void setDefaultChannel(String defaultChannel);
 
     CompletionStage<PlayerSettings> settings(UUID playerId, String defaultChannel);
 
+    default CompletionStage<PlayerSocialState> loadPlayerState(
+            UUID playerId,
+            String defaultChannel
+    ) {
+        CompletionStage<PlayerSettings> settingsStage = settings(playerId, defaultChannel);
+        CompletionStage<Optional<GroupMembership>> membershipStage = groupForMember(playerId);
+        CompletionStage<Set<UUID>> ignoredStage = ignoredPlayers(playerId);
+        CompletionStage<Set<UUID>> membersStage = membershipStage.thenCompose(membership ->
+                membership.isEmpty()
+                        ? CompletableFuture.completedFuture(Set.of())
+                        : groupMembers(membership.get().group().id()));
+        return settingsStage.thenCombine(membershipStage, StateParts::new)
+                .thenCombine(ignoredStage,
+                        (parts, ignored) -> new StateParts(
+                                parts.settings(), parts.membership(), ignored))
+                .thenCombine(membersStage,
+                        (parts, members) -> new PlayerSocialState(
+                                parts.settings(), parts.membership(), parts.ignored(), members));
+    }
+
     CompletionStage<Void> setActiveChannel(UUID playerId, String channelId);
+
+    default CompletionStage<Void> setActiveGroupChannel(UUID playerId, UUID groupId) {
+        return groupForMember(playerId).thenCompose(membership -> {
+            if (membership.isEmpty() || !membership.get().group().id().equals(groupId)) {
+                return CompletableFuture.failedFuture(
+                        new IllegalArgumentException("Player is not in that group"));
+            }
+            return setActiveChannel(playerId, GroupChannels.id(groupId));
+        });
+    }
+
+    CompletionStage<Boolean> compareAndSetActiveChannel(
+            UUID playerId,
+            String expectedChannelId,
+            String channelId
+    );
 
     CompletionStage<Void> setDirectMessagesEnabled(UUID playerId, boolean enabled);
 
@@ -59,5 +97,15 @@ public interface SocialRepository extends AutoCloseable {
 
     @Override
     default void close() {
+    }
+
+    record StateParts(
+            PlayerSettings settings,
+            Optional<GroupMembership> membership,
+            Set<UUID> ignored
+    ) {
+        StateParts(PlayerSettings settings, Optional<GroupMembership> membership) {
+            this(settings, membership, Set.of());
+        }
     }
 }

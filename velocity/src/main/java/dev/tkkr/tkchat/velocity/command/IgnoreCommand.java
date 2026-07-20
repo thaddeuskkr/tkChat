@@ -23,6 +23,11 @@ public final class IgnoreCommand implements SimpleCommand {
             invocation.source().sendMessage(VelocityChatService.error("Usage: /ignore <player>"));
             return;
         }
+        if (!states.isLoaded(player.getUniqueId())) {
+            player.sendMessage(VelocityChatService.denial(
+                    dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
+            return;
+        }
         Player target = proxy.getPlayer(invocation.arguments()[0]).orElse(null);
         if (target == null || target.equals(player)) {
             player.sendMessage(VelocityChatService.error("That player is not available."));

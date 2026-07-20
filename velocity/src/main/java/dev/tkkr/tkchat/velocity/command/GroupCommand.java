@@ -58,6 +58,11 @@ public final class GroupCommand implements SimpleCommand {
             invocation.source().sendMessage(VelocityChatService.error("Only players can manage groups."));
             return;
         }
+        if (!states.isLoaded(player.getUniqueId())) {
+            player.sendMessage(VelocityChatService.denial(
+                    dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
+            return;
+        }
         String[] args = invocation.arguments();
         if (args.length == 0) {
             showStatus(player);

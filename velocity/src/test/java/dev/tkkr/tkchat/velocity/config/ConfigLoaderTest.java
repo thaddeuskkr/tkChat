@@ -19,22 +19,24 @@ class ConfigLoaderTest {
         AppConfig config = new ConfigLoader().load(directory);
         String yaml = Files.readString(directory.resolve("config.yml"));
 
-        assertTrue(yaml.contains("mongodb:"));
+        assertTrue(yaml.contains("mariadb:"));
         assertTrue(yaml.contains("rabbitmq:"));
         assertEquals("tkchat.channels.global.send",
                 config.channelDefinitions().getFirst().sendPermission());
         assertEquals("global", config.channelDefinitions().getFirst().id());
         assertTrue(config.channelDefinitions().getFirst().aliases().contains("g"));
-        assertEquals(10_000, config.mongodb.connectTimeoutMillis);
-        assertEquals(10_000, config.mongodb.readTimeoutMillis);
-        assertEquals(15_000, config.mongodb.operationTimeoutMillis);
-        assertEquals(4, config.mongodb.workerThreads);
-        assertEquals(256, config.mongodb.maxQueuedOperations);
+        assertEquals("jdbc:mariadb://127.0.0.1:3306/tkchat", config.mariadb.jdbcUrl);
+        assertEquals(8, config.mariadb.maximumPoolSize);
+        assertEquals(2, config.mariadb.minimumIdle);
+        assertEquals(10_000, config.mariadb.connectionTimeoutMillis);
+        assertEquals(15_000, config.mariadb.socketTimeoutMillis);
+        assertEquals(8, config.mariadb.workerThreads);
+        assertEquals(1_024, config.mariadb.maxQueuedOperations);
         assertEquals(8, config.chat.maxPendingMessagesPerSender);
         assertEquals(5_000, config.chat.maxMessageAgeMillis);
         assertEquals(30_000, config.chat.maxDeliveryAgeMillis);
-        assertTrue(yaml.contains("operation-timeout-millis: 15000"));
-        assertTrue(yaml.contains("max-queued-operations: 256"));
+        assertTrue(yaml.contains("socket-timeout-millis: 15000"));
+        assertTrue(yaml.contains("max-queued-operations: 1024"));
     }
 
     @Test

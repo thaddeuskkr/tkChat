@@ -18,6 +18,11 @@ public final class DirectMessagesToggleCommand implements SimpleCommand {
             invocation.source().sendMessage(VelocityChatService.error("Only players have DM settings."));
             return;
         }
+        if (!states.isLoaded(player.getUniqueId())) {
+            player.sendMessage(VelocityChatService.denial(
+                    dev.tkkr.tkchat.core.model.DenialReason.NOT_READY));
+            return;
+        }
         states.toggleDirectMessages(player.getUniqueId())
                 .whenComplete((enabled, error) -> player.sendMessage(error == null
                 ? VelocityChatService.success("Direct messages are now " + (enabled ? "enabled." : "disabled."))
