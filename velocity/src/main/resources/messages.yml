@@ -4,6 +4,10 @@
 general:
   no-permission: '<red>You do not have permission to use this command.</red>'
 
+me:
+  player-only: '<red>Only players can use /me.</red>'
+  usage: '<red>Usage: /me <action> (maximum <max_length> characters)</red>'
+
 root:
   unknown: '<red>Unknown tkChat command.</red>'
   no-available: '<red>You do not have permission to use any tkChat commands.</red>'

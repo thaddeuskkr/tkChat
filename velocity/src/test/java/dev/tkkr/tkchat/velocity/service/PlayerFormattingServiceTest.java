@@ -76,6 +76,15 @@ class PlayerFormattingServiceTest {
         assertEquals("Styled\nRed Plain", plain.serialize(rendered));
     }
 
+    @Test
+    void ignoresInternalActionMarkerAsAFormattingPermission() {
+        String input = "<red>Still literal</red>";
+
+        Component rendered = formatting.render(input, Set.of("tkchat:action"));
+
+        assertEquals(input, plain.serialize(rendered));
+    }
+
     private static TextComponent findText(Component component, String content) {
         if (component instanceof TextComponent text && text.content().equals(content)) {
             return text;

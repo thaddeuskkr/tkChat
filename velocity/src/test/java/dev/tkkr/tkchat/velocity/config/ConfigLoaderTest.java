@@ -39,10 +39,37 @@ class ConfigLoaderTest {
         assertTrue(yaml.contains("socket-timeout-millis: 15000"));
         assertTrue(yaml.contains("max-queued-operations: 1024"));
         assertTrue(yaml.contains("response-prefix:"));
+        assertTrue(yaml.contains("me: '<gray>* </gray><prefix><name><suffix> <message>'"));
         assertTrue(messages.contains("no-permission:"));
+        assertTrue(messages.contains("Usage: /me <action>"));
         assertTrue(messages.contains("invite-received:"));
         assertEquals("<red>Unknown tkChat command.</red>",
                 config.messages.template(ResponseKey.ROOT_UNKNOWN));
+    }
+
+    @Test
+    void existingConfigsAndMessagesReceiveNewDefaultsWithoutBeingRewritten() throws Exception {
+        new ConfigLoader().load(directory);
+        Path configPath = directory.resolve("config.yml");
+        String oldConfig = Files.readString(configPath).replace(
+                "  me: '<gray>* </gray><prefix><name><suffix> <message>'\n", "");
+        Files.writeString(configPath, oldConfig);
+        Path messagesPath = directory.resolve("messages.yml");
+        String oldMessages = Files.readString(messagesPath).replace(
+                "me:\n"
+                        + "  player-only: '<red>Only players can use /me.</red>'\n"
+                        + "  usage: '<red>Usage: /me <action> (maximum <max_length> characters)</red>'\n\n",
+                "");
+        Files.writeString(messagesPath, oldMessages);
+
+        AppConfig upgraded = new ConfigLoader().load(directory);
+
+        assertEquals("<gray>* </gray><prefix><name><suffix> <message>",
+                upgraded.formats.me);
+        assertEquals("<red>Usage: /me <action> (maximum <max_length> characters)</red>",
+                upgraded.messages.template(ResponseKey.ME_USAGE));
+        assertEquals(oldConfig, Files.readString(configPath));
+        assertEquals(oldMessages, Files.readString(messagesPath));
     }
 
     @Test

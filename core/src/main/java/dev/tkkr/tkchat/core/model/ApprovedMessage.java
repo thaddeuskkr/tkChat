@@ -1,6 +1,7 @@
 package dev.tkkr.tkchat.core.model;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -23,6 +24,12 @@ public record ApprovedMessage(
         ItemLink itemLink,
         Set<UUID> recipients
 ) {
+    /**
+     * Stored in the existing formatting collection so action messages remain wire-compatible with
+     * 0.3.x proxies during a rolling upgrade. Older proxies safely ignore unknown formatting keys.
+     */
+    private static final String ACTION_MARKER = "tkchat:action";
+
     public ApprovedMessage {
         messageId = Objects.requireNonNull(messageId, "messageId");
         createdAt = Objects.requireNonNull(createdAt, "createdAt");
@@ -53,5 +60,18 @@ public record ApprovedMessage(
                 messageId, createdAt, routeKind, routeId, routeDisplayName, channelId, channelScope,
                 senderId, senderName, senderServerId, senderPrefix, senderSuffix, content,
                 replacement, itemLink, recipients);
+    }
+
+    public ApprovedMessage asAction() {
+        if (hasActionMarker()) {
+            return this;
+        }
+        HashSet<String> replacement = new HashSet<>(formatting);
+        replacement.add(ACTION_MARKER);
+        return withFormatting(replacement);
+    }
+
+    public boolean hasActionMarker() {
+        return formatting.contains(ACTION_MARKER);
     }
 }

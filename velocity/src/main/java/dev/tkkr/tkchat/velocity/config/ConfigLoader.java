@@ -59,13 +59,28 @@ public final class ConfigLoader {
                 Files.copy(defaults, messagesPath);
             }
         }
+        Map<String, String> flattened = bundledMessages();
         JsonNode root = mapper.readTree(messagesPath.toFile());
         if (root == null || !root.isObject()) {
             throw new IOException("messages.yml must contain a mapping of responses");
         }
-        Map<String, String> flattened = new LinkedHashMap<>();
         flattenMessages("", root, flattened);
         return new ResponseMessages(flattened);
+    }
+
+    private Map<String, String> bundledMessages() throws IOException {
+        try (InputStream defaults = ConfigLoader.class.getResourceAsStream("/messages.yml")) {
+            if (defaults == null) {
+                throw new IOException("Bundled messages.yml is missing");
+            }
+            JsonNode root = mapper.readTree(defaults);
+            if (root == null || !root.isObject()) {
+                throw new IOException("Bundled messages.yml must contain a mapping of responses");
+            }
+            Map<String, String> flattened = new LinkedHashMap<>();
+            flattenMessages("", root, flattened);
+            return flattened;
+        }
     }
 
     private static void flattenMessages(

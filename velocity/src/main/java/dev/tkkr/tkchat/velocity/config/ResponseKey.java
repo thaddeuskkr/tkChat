@@ -3,6 +3,9 @@ package dev.tkkr.tkchat.velocity.config;
 public enum ResponseKey {
     GENERAL_NO_PERMISSION("general.no-permission"),
 
+    ME_PLAYER_ONLY("me.player-only"),
+    ME_USAGE("me.usage"),
+
     ROOT_UNKNOWN("root.unknown"),
     ROOT_NO_AVAILABLE("root.no-available"),
     ROOT_AVAILABLE("root.available"),

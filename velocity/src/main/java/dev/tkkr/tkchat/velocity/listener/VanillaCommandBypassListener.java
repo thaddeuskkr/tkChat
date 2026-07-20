@@ -9,6 +9,7 @@ import dev.tkkr.tkchat.velocity.Permissions;
 import dev.tkkr.tkchat.velocity.service.VelocityChatService;
 import dev.tkkr.tkchat.velocity.service.ResponseService;
 import dev.tkkr.tkchat.velocity.config.ResponseKey;
+import dev.tkkr.tkchat.velocity.state.PlayerStateService;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -17,15 +18,18 @@ import java.util.concurrent.CompletableFuture;
 public final class VanillaCommandBypassListener {
     private final ProxyServer proxy;
     private final VelocityChatService chat;
+    private final PlayerStateService states;
     private final ResponseService responses;
 
     public VanillaCommandBypassListener(
             ProxyServer proxy,
             VelocityChatService chat,
+            PlayerStateService states,
             ResponseService responses
     ) {
         this.proxy = proxy;
         this.chat = chat;
+        this.states = states;
         this.responses = responses;
     }
 
@@ -39,6 +43,9 @@ public final class VanillaCommandBypassListener {
             return null;
         }
         String command = parts[0].toLowerCase(Locale.ROOT);
+        if (command.equals("minecraft:me")) {
+            return action(event, sender, parts);
+        }
         if (!command.equals("minecraft:msg")
                 && !command.equals("minecraft:tell")
                 && !command.equals("minecraft:w")) {
@@ -60,6 +67,22 @@ public final class VanillaCommandBypassListener {
         }
         CompletableFuture<Void> future = chat.direct(sender, recipient,
                 String.join(" ", Arrays.copyOfRange(parts, 2, parts.length))).toCompletableFuture();
+        return EventTask.resumeWhenComplete(future);
+    }
+
+    private EventTask action(CommandExecuteEvent event, Player sender, String[] parts) {
+        event.setResult(CommandExecuteEvent.CommandResult.denied());
+        if (!sender.hasPermission(Permissions.command("me"))) {
+            sender.sendMessage(responses.message(ResponseKey.GENERAL_NO_PERMISSION));
+            return null;
+        }
+        CompletableFuture<Void> future = chat.action(
+                sender,
+                states.activeChannel(sender.getUniqueId()),
+                parts.length < 2
+                        ? ""
+                        : String.join(" ", Arrays.copyOfRange(parts, 1, parts.length)))
+                .toCompletableFuture();
         return EventTask.resumeWhenComplete(future);
     }
 }

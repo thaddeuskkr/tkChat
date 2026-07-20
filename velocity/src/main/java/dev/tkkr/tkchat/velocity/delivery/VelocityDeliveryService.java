@@ -229,21 +229,36 @@ public final class VelocityDeliveryService {
             PreparedMessage prepared,
             Map<String, Component> rendered
     ) {
-        String template;
+        String template = selectTemplate(message, viewer.getUniqueId(), channels, formats);
+        return renderTemplate(template, message, viewer, prepared, rendered);
+    }
+
+    static String selectTemplate(
+            ApprovedMessage message,
+            UUID viewerId,
+            ChannelRegistry channels,
+            AppConfig.Formats formats
+    ) {
+        if (message.hasActionMarker()) {
+            return formats.me;
+        }
         if (message.routeKind() == RouteKind.DIRECT) {
-            template = viewer.getUniqueId().equals(message.senderId())
+            return viewerId.equals(message.senderId())
                     ? formats.directOutgoing
                     : formats.directIncoming;
-        } else if (message.routeKind() == RouteKind.GROUP) {
-            template = formats.group;
-        } else if (message.routeKind() == RouteKind.BROADCAST) {
-            template = formats.broadcast;
-        } else if (message.routeKind() == RouteKind.CHAT_CLEAR) {
-            template = formats.chatClear;
-        } else {
-            template = channels.find(message.channelId()).map(ChannelDefinition::format).orElse("<message>");
         }
-        return renderTemplate(template, message, viewer, prepared, rendered);
+        if (message.routeKind() == RouteKind.GROUP) {
+            return formats.group;
+        }
+        if (message.routeKind() == RouteKind.BROADCAST) {
+            return formats.broadcast;
+        }
+        if (message.routeKind() == RouteKind.CHAT_CLEAR) {
+            return formats.chatClear;
+        }
+        return channels.find(message.channelId())
+                .map(ChannelDefinition::format)
+                .orElse("<message>");
     }
 
     private Component renderSpy(
@@ -292,11 +307,17 @@ public final class VelocityDeliveryService {
                 .resolver(Placeholder.unparsed("name", message.senderName()))
                 .resolver(Placeholder.component("suffix", prepared.suffix()))
                 .resolver(Placeholder.unparsed("target", message.routeDisplayName()))
+                .resolver(Placeholder.unparsed("channel", message.routeDisplayName()))
                 .resolver(Placeholder.component("message", content))
                 .build();
         try {
             return miniMessage.deserialize(template, placeholders);
         } catch (RuntimeException malformedTemplate) {
+            if (message.hasActionMarker()) {
+                return Component.text("* ", NamedTextColor.GRAY)
+                        .append(Component.text(message.senderName() + " ", NamedTextColor.WHITE))
+                        .append(content);
+            }
             return Component.text("[tkChat] ", NamedTextColor.DARK_GRAY)
                     .append(Component.text(message.senderName() + ": ", NamedTextColor.WHITE))
                     .append(content);

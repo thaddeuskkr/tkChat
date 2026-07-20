@@ -105,6 +105,9 @@ public final class AppConfig {
         if (formats.responsePrefix == null) {
             throw new IllegalArgumentException("formats.response-prefix cannot be null");
         }
+        if (formats.me == null) {
+            throw new IllegalArgumentException("formats.me cannot be null");
+        }
     }
 
     public ChatPolicy policy() {
@@ -187,6 +190,7 @@ public final class AppConfig {
     public static final class Formats {
         public String responsePrefix = "<gradient:#55FFFF:#55FF55><bold>tkChat</bold></gradient> "
                 + "<dark_gray>»</dark_gray> ";
+        public String me = "<gray>* </gray><prefix><name><suffix> <message>";
         public String directIncoming = "<dark_gray>[</dark_gray><light_purple>DM from <name></light_purple><dark_gray>]</dark_gray> <message>";
         public String directOutgoing = "<dark_gray>[</dark_gray><light_purple>DM to <target></light_purple><dark_gray>]</dark_gray> <message>";
         public String group = "<dark_gray>[</dark_gray><aqua><target></aqua><dark_gray>]</dark_gray> <prefix><name><suffix><dark_gray>: </dark_gray><message>";

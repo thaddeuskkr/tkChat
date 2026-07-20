@@ -55,19 +55,24 @@ public final class PlayerFormattingService {
         if (allowed == null || allowed.isEmpty()) {
             return Component.text(input);
         }
+        HashSet<String> permitted = new HashSet<>(allowed);
+        permitted.retainAll(KNOWN_FORMATS);
+        if (permitted.isEmpty()) {
+            return Component.text(input);
+        }
         TagResolver.Builder tags = TagResolver.builder();
-        tags.resolver(filteredColors(allowed));
+        tags.resolver(filteredColors(permitted));
         DECORATION_RESOLVERS.forEach((permission, resolver) -> {
-            if (allowed.contains(permission)) {
+            if (permitted.contains(permission)) {
                 tags.resolver(resolver);
             }
         });
         EFFECT_RESOLVERS.forEach((permission, resolver) -> {
-            if (!allowed.contains(permission)) {
+            if (!permitted.contains(permission)) {
                 return;
             }
             tags.resolver(switch (permission) {
-                case "gradient", "transition", "shadow" -> filteredEffectColors(resolver, allowed);
+                case "gradient", "transition", "shadow" -> filteredEffectColors(resolver, permitted);
                 default -> resolver;
             });
         });

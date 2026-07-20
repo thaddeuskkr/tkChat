@@ -61,7 +61,7 @@ Build a particular Fabric artifact:
 ```
 
 Build every release artifact with `./gradlew releaseArtifacts`. Release jars are written under the
-plugin-version folder, such as `build/releases/0.3.1/`, while jar names omit the plugin version.
+plugin-version folder, such as `build/releases/0.3.2/`, while jar names omit the plugin version.
 Fabric 26.x tasks require Gradle itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation
 when invoking the complete matrix.
 
@@ -119,7 +119,7 @@ lowercase, so the documented form is `tkchat` even though the plugin name is sty
 | `tkchat.bypass.channel_restrictions` | Ignore channel and group send/receive restrictions |
 | `tkchat.bypass.chat_clear` | Keep chat history when `/clearchat` is used |
 
-Command nodes are `channel`, `message`, `reply`, `group`, `groupchat`, `ignore`, `dmtoggle`,
+Command nodes are `channel`, `message`, `reply`, `me`, `group`, `groupchat`, `ignore`, `dmtoggle`,
 `broadcast`, `clearchat`, `socialspy`, and `reload`. Aliases and `/tkchat` subcommands use their
 canonical command's permission.
 
@@ -147,6 +147,7 @@ Example:
 /lp group default permission set tkchat.command.channel true
 /lp group default permission set tkchat.command.message true
 /lp group default permission set tkchat.command.reply true
+/lp group default permission set tkchat.command.me true
 /lp group default permission set tkchat.command.group true
 /lp group default permission set tkchat.command.groupchat true
 /lp group default permission set tkchat.command.ignore true
@@ -172,7 +173,9 @@ moderation denials, group notifications, and group action-button labels and hove
 values such as player, group, and channel names are inserted as literal text, so they cannot inject
 formatting into an administrator-defined response. The prefix prepended to every response remains
 alongside the other presentation settings at `formats.response-prefix` in `config.yml`; its default
-is a colored `tkChat » `, and setting it to an empty string disables it.
+is a colored `tkChat » `, and setting it to an empty string disables it. When an upgrade adds a new
+response, an existing `messages.yml` uses the bundled default for that missing key while retaining
+all of its configured overrides.
 
 The active backend name is explicitly added as LuckPerms' `server` context. World, dimension,
 gamemode, region, and other backend-only contexts are not inferred by the proxy in this release.
@@ -188,6 +191,7 @@ gamemode, region, and other backend-only contexts are not inferred by the proxy 
   switches channel and a supplied message sends once without switching
 - `/msg <player> <message>` (`/tell`, `/w`, `/message`)
 - `/reply <message>` (`/r`)
+- `/me <action>`; sends to the active channel and uses `formats.me`
 - `/group create <name> [password]` (no password creates a public group; providing one creates a private group)
 - `/group list`
 - `/group join <name> [password]`
@@ -203,7 +207,7 @@ gamemode, region, and other backend-only contexts are not inferred by the proxy 
 - `/socialspy [on|off]` (`/spy`)
 
 Full root-command examples include `/tkchat channel global`, `/tkchat channel g`,
-`/tkchat local [message]`, `/tkchat message <player> <message>`,
+`/tkchat local [message]`, `/tkchat message <player> <message>`, `/tkchat me <action>`,
 `/tkchat broadcast <message>`, and `/tkchat clearchat <channel>`. Standalone commands and their
 aliases remain available when another plugin has not claimed them.
 
@@ -215,8 +219,8 @@ selected channel was removed are moved to the new default channel. Changes to `i
 storage or transport connections; the command reports those sections after an otherwise successful
 reload.
 
-The proxy also intercepts `/minecraft:msg`, `/minecraft:tell`, and `/minecraft:w`, preventing a
-namespaced vanilla bypass.
+The proxy also intercepts `/minecraft:msg`, `/minecraft:tell`, `/minecraft:w`, and
+`/minecraft:me`, preventing a namespaced vanilla bypass.
 
 Group names are unique case-insensitively and match `[A-Za-z0-9_-]{1,32}`. A member's group appears
 in `/channel` under its normalized name, so `/channel builders` switches normal chat into the
@@ -233,6 +237,10 @@ invitation consumption, and affected active-channel repairs are transactional.
   clearing a channel also removes the recipient's visible messages from other channels.
 - Ignores apply to channel, group, and direct chat. Staff mutes remain LibertyBans' responsibility;
   tkChat uses LibertyBans' cached mute lookup for every routed player message.
+- `/me` actions follow the sender's active static or group channel, so they inherit that route's
+  scope, permissions, ignores, moderation, rate limit, mentions, item links, and URL handling. The
+  `formats.me` MiniMessage template accepts `<prefix>`, `<name>`, `<suffix>`, `<target>` (also
+  `<channel>`), and `<message>`.
 - Case-insensitive `@Username` mentions can highlight the recipient's name and play a configurable
   sound. Mention styling and sound settings live under `mentions`.
 - `<item>` and `[item]` link the sender's main-hand item. The Velocity plugin asks the Paper or
@@ -240,9 +248,18 @@ invitation consumption, and affected active-channel repairs are transactional.
   item component. Placeholders, visible format, and timeout are configurable under `item-links`.
 - Social spy is a per-session toggle that shows eligible staff channel, group, and direct messages
   they would not normally receive.
-- Channel, group, direct-message, broadcast, clear, social-spy, mention, and item-link presentation
+- Channel, group, action, direct-message, broadcast, clear, social-spy, mention, and item-link presentation
   remain customizable with MiniMessage formats in the Velocity config. Backend configuration stays
   limited to backend-local concerns.
+
+## Upgrade compatibility
+
+Existing 0.3.x `config.yml` files do not need migration: omitted additive settings such as
+`formats.me` receive their in-code default, and tkChat does not rewrite the file. Existing
+`messages.yml` overrides remain authoritative while newly introduced response keys fall back to
+their bundled defaults. `/me` uses a marker inside the existing serialized message envelope rather
+than adding a new network message type, so mixed 0.3.x proxies can deserialize it during a rolling
+upgrade; an older proxy degrades gracefully by showing it with the channel's ordinary format.
 
 Discord integration, runtime-created custom channels, multi-language messages, and proximity chat
 are intentionally outside the current scope.

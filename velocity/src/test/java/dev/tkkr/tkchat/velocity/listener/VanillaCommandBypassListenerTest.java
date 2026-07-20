@@ -29,7 +29,31 @@ class VanillaCommandBypassListenerTest {
         CommandExecuteEvent event = new CommandExecuteEvent(
                 sender, "minecraft:msg Recipient hello");
         VanillaCommandBypassListener listener = new VanillaCommandBypassListener(
-                null, null, ResponseTestFixtures.responses());
+                null, null, null, ResponseTestFixtures.responses());
+
+        assertNull(listener.onCommand(event));
+
+        assertFalse(event.getResult().isAllowed());
+        org.junit.jupiter.api.Assertions.assertEquals(1, deliveredMessages.get());
+    }
+
+    @Test
+    void namespacedMeRequiresTheTkChatMePermission() {
+        AtomicInteger deliveredMessages = new AtomicInteger();
+        Player sender = (Player) Proxy.newProxyInstance(
+                Player.class.getClassLoader(),
+                new Class<?>[]{Player.class},
+                (proxy, method, arguments) -> switch (method.getName()) {
+                    case "hasPermission" -> false;
+                    case "sendMessage" -> {
+                        deliveredMessages.incrementAndGet();
+                        yield null;
+                    }
+                    default -> defaultValue(method.getReturnType());
+                });
+        CommandExecuteEvent event = new CommandExecuteEvent(sender, "minecraft:me waves");
+        VanillaCommandBypassListener listener = new VanillaCommandBypassListener(
+                null, null, null, ResponseTestFixtures.responses());
 
         assertNull(listener.onCommand(event));
 

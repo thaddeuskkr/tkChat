@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Plugin(
         id = "tkchat",
         name = "tkChat",
-        version = "0.3.1",
+        version = "0.3.2",
         description = "Velocity-led, cross-server channel chat",
         authors = {"tkkr"},
         dependencies = {
@@ -223,7 +223,8 @@ public final class TkChatPlugin {
             PlayerLifecycleListener lifecycle = new PlayerLifecycleListener(
                     this, proxy, logger, states, conversations, spies, chat, responses);
             registerRuntimeListener(lifecycle);
-            registerRuntimeListener(new VanillaCommandBypassListener(proxy, chat, responses));
+            registerRuntimeListener(new VanillaCommandBypassListener(
+                    proxy, chat, states, responses));
             proxy.getAllPlayers().forEach(lifecycle::loadExisting);
 
             infrastructure = InfrastructureSnapshot.from(config);

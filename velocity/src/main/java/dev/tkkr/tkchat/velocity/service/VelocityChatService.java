@@ -6,6 +6,7 @@ import dev.tkkr.tkchat.core.model.DenialReason;
 import dev.tkkr.tkchat.core.model.RouteDecision;
 import dev.tkkr.tkchat.core.model.SenderContext;
 import dev.tkkr.tkchat.core.service.ChatRouter;
+import dev.tkkr.tkchat.core.service.GroupChannels;
 import dev.tkkr.tkchat.core.service.MessageTransport;
 import dev.tkkr.tkchat.velocity.state.ConversationTracker;
 import dev.tkkr.tkchat.velocity.Permissions;
@@ -108,6 +109,16 @@ public final class VelocityChatService {
         return intercept(sender, () -> router.routeGroup(context(sender), content));
     }
 
+    public CompletionStage<Void> action(Player sender, String channelId, String content) {
+        Supplier<? extends CompletionStage<RouteDecision>> route =
+                GroupChannels.groupId(channelId).isPresent()
+                        ? () -> router.routeGroup(context(sender), content)
+                        : () -> router.routeChannel(context(sender), channelId, content);
+        return handleQueueFailure(sender, outbound.submit(sender.getUniqueId(),
+                () -> route.get().thenCompose(decision -> publishOrExplain(
+                        sender, decision, true))));
+    }
+
     private CompletionStage<Void> send(
             Player sender,
             Supplier<? extends CompletionStage<RouteDecision>> route
@@ -139,12 +150,24 @@ public final class VelocityChatService {
     }
 
     public CompletionStage<Void> publishOrExplain(Player sender, RouteDecision decision) {
+        return publishOrExplain(sender, decision, false);
+    }
+
+    private CompletionStage<Void> publishOrExplain(
+            Player sender,
+            RouteDecision decision,
+            boolean action
+    ) {
         if (decision instanceof RouteDecision.Denied denied) {
             sender.sendMessage(responses.denial(denied.reason()));
             return java.util.concurrent.CompletableFuture.completedFuture(null);
         }
         RouteDecision.Approved approved = (RouteDecision.Approved) decision;
-        return itemLinks.enrich(sender, approved.message().withFormatting(formatting.allowed(sender)))
+        var prepared = approved.message().withFormatting(formatting.allowed(sender));
+        if (action) {
+            prepared = prepared.asAction();
+        }
+        return itemLinks.enrich(sender, prepared)
                 .thenCompose(transport::publish)
                 .exceptionally(failure -> {
                     Throwable cause = failure instanceof CompletionException && failure.getCause() != null

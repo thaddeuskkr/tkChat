@@ -112,6 +112,8 @@ public final class CommandRegistrar {
                 new MessageCommand(proxy, chat, responses), "tell", "w", "message");
         add(specs, rootChildren, "reply", "reply", Permissions.command("reply"),
                 new ReplyCommand(chat, responses), "r");
+        add(specs, rootChildren, "me", "me", Permissions.command("me"),
+                new MeCommand(chat, states, responses, config.chat));
         add(specs, rootChildren, "group", "group", Permissions.command("group"),
                 new GroupCommand(proxy, repository, chat, states, channels, access, responses), "party");
         SimpleCommand groupChat = invocation -> {

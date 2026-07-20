@@ -29,4 +29,20 @@ class ApprovedMessageSerializationTest {
 
         assertEquals(original, decoded);
     }
+
+    @Test
+    void preservesBackwardCompatibleActionMarkerAcrossNetworkSerialization() throws Exception {
+        ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        ApprovedMessage original = new ApprovedMessage(
+                UUID.randomUUID(), Instant.parse("2026-07-20T12:00:00Z"), RouteKind.CHANNEL,
+                "global", "Global", "global", ChannelScope.GLOBAL,
+                UUID.randomUUID(), "Alice", "alpha", "", "", "waves",
+                Set.of(), null, Set.of()).asAction();
+
+        ApprovedMessage decoded = mapper.readValue(
+                mapper.writeValueAsBytes(original), ApprovedMessage.class);
+
+        assertEquals(original, decoded);
+        org.junit.jupiter.api.Assertions.assertTrue(decoded.hasActionMarker());
+    }
 }
