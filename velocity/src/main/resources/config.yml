@@ -1,0 +1,71 @@
+instance-id: velocity-1
+default-channel: global
+
+require-signed-velocity: true
+
+chat:
+  max-message-length: 256
+  rate-limit-messages: 5
+  rate-limit-window-millis: 5000
+  clear-lines: 50
+
+mentions:
+  enabled: true
+  prefix: '@'
+  highlight-format: '<yellow><bold><mention></bold></yellow>'
+  play-sound: true
+  sound: minecraft:entity.experience_orb.pickup
+  sound-volume: 1.0
+  sound-pitch: 1.0
+
+item-links:
+  enabled: true
+  placeholders: ['<item>', '[item]']
+  format: '<aqua>[<amount>x <item_name>]</aqua>'
+  response-timeout-millis: 1500
+
+mongodb:
+  enabled: true
+  fallback-to-memory: false
+  # TKCHAT_MONGODB_URI overrides this value, keeping credentials out of this file.
+  connection-string: mongodb://127.0.0.1:27017/?authSource=admin
+  database: tkchat
+  collection-prefix: tkchat
+  server-selection-timeout-millis: 10000
+  connect-timeout-millis: 10000
+  read-timeout-millis: 10000
+  operation-timeout-millis: 15000
+  worker-threads: 4
+
+rabbitmq:
+  # A single Velocity process delivers locally and does not need RabbitMQ.
+  enabled: false
+  fallback-to-local: true
+  uri: amqp://guest:guest@127.0.0.1:5672/%2f
+  exchange: tkchat.events
+  queue-prefix: tkchat.velocity
+  publish-confirm-timeout-millis: 5000
+
+liberty-bans:
+  # Deny chat if LibertyBans cannot answer. This avoids moderation bypass during an outage.
+  fail-closed: true
+
+formats:
+  direct-incoming: '<dark_gray>[</dark_gray><light_purple>DM from <name></light_purple><dark_gray>]</dark_gray> <message>'
+  direct-outgoing: '<dark_gray>[</dark_gray><light_purple>DM to <target></light_purple><dark_gray>]</dark_gray> <message>'
+  group: '<dark_gray>[</dark_gray><aqua><target></aqua><dark_gray>]</dark_gray> <prefix><name><suffix><dark_gray>: </dark_gray><message>'
+  broadcast: '<dark_gray>[</dark_gray><gold>Broadcast</gold><dark_gray>]</dark_gray> <message>'
+  chat-clear: '<gray><target> chat was cleared by <white><name></white>.</gray>'
+  social-spy: '<dark_gray>[Spy: <target>]</dark_gray> <name><dark_gray>: </dark_gray><message>'
+
+channels:
+  - id: global
+    aliases: [g]
+    display-name: Global
+    scope: GLOBAL
+    format: '<dark_gray>[</dark_gray><green>Global</green><dark_gray>]</dark_gray> <prefix><name><suffix><dark_gray>: </dark_gray><message>'
+  - id: local
+    aliases: [l]
+    display-name: Local
+    scope: SERVER
+    format: '<dark_gray>[</dark_gray><gray>Local</gray><dark_gray>]</dark_gray> <prefix><name><suffix><dark_gray>: </dark_gray><message>'

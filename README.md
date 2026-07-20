@@ -1,0 +1,248 @@
+# tkChat
+
+tkChat is a Velocity-led Minecraft network chat system for Paper and Fabric servers. Velocity is
+the trust boundary: it checks LuckPerms and LibertyBans before routing global channels, server-local
+chat, groups, and direct messages. MongoDB stores social state and player preferences. RabbitMQ is
+available for multi-proxy fan-out, but is disabled by default for a single Velocity process.
+
+This repository targets every Java Edition release from Minecraft 1.21 through 26.2. It produces:
+
+- One Velocity 4.1 plugin (Java 25)
+- A Paper 1.21.x plugin and a Paper 26.2 plugin
+- One Fabric server mod for each supported Minecraft release
+
+## Architecture
+
+1. A player sends chat or a tkChat command through Velocity.
+2. Velocity evaluates the correct LuckPerms `server` context, link bypass, rate limit, and
+   LibertyBans mute cache.
+3. Every approved message, including server-local chat, is cancelled in the vanilla pipeline and
+   rendered by Velocity as a server-authored message. This gives every channel the same client
+   behavior and avoids reportability/signature indicators changing after a backend switch.
+4. A single proxy delivers locally; multi-proxy deployments use RabbitMQ so each Velocity instance
+   can deliver to its eligible local recipients.
+5. Player input is always inserted as a literal Adventure component. MiniMessage is parsed only
+   for administrator-controlled formats and LuckPerms metadata.
+
+Messages are visually normal chat but are intentionally server-authored and cannot be reported
+through Mojang's signed-chat reporting interface. Velocity still authenticates the sender,
+evaluates permissions and mutes, and inserts player input only as literal text.
+
+## Requirements
+
+- Velocity 4.1 on Java 25+
+- SignedVelocity on Velocity and every Paper/Fabric backend
+- Velocity player-info forwarding configured for production. Fabric needs a compatible forwarding
+  solution; SignedVelocity synchronizes chat decisions but does not forward player identities.
+- LuckPerms and LibertyBans on Velocity
+- MongoDB (recommended and enabled by default; standalone servers are supported)
+- RabbitMQ (optional; only needed when multiple Velocity processes must fan out chat)
+- Java 21 for Minecraft 1.21.x and Java 25 for Minecraft 26.x
+
+LuckPerms and LibertyBans are not required on backend servers. The backend artifacts intentionally
+contain no moderation or routing authority.
+
+## Build
+
+The Gradle wrapper provisions the required toolchains automatically:
+
+```bash
+./gradlew :core:test :velocity:shadowJar :paper-1.21:jar :paper-26.2:jar
+```
+
+Build a particular Fabric artifact:
+
+```bash
+./gradlew :fabric-1-21-11:remapJar
+./gradlew :fabric-26-2:jar
+```
+
+Build every release artifact with `./gradlew releaseArtifacts`. Fabric 26.x tasks require Gradle
+itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation when invoking the complete
+matrix.
+
+## Live integration verification
+
+The single-proxy path was exercised on July 20, 2026 using two authenticated Prism Launcher
+clients, Velocity 4.1.0-SNAPSHOT build 9, two Fabric 26.2 backends, Fabric API 0.155.2+26.2,
+FabricProxy-Lite 2.12.0, the local SignedVelocity 1.4.2-SNAPSHOT proxy/Fabric artifacts,
+LibertyBans 1.2.0-M1-SNAPSHOT, and a remote standalone MongoDB 8-compatible server. RabbitMQ was
+disabled.
+
+The controlled run verified global chat in both directions between different backends, local-chat
+server isolation, direct messages and replies, group create/invite/accept/chat across backends,
+LibertyBans mute rejection, and persisted MongoDB group/settings documents. FabricProxy-Lite was
+first run with its default configuration to generate `config/FabricProxy-Lite.toml`; both backends
+then used Velocity modern forwarding with the same generated forwarding secret,
+`hackOnlineMode = true`, and `hackMessageChain = true`. Both clients retained their forwarded
+Mojang identities, switched backends without a public-key or message-chain rejection, and rendered
+the local route only on the correct backend after the switch. MongoDB records were written under
+the forwarded Mojang UUIDs. All current channel deliveries are intentionally rendered as
+server-authored messages.
+
+## Installation
+
+1. Put `tkChat-Velocity-<version>.jar` on Velocity.
+2. Put the matching Paper or exact-version Fabric artifact on every backend.
+3. Keep SignedVelocity installed on the proxy and all backends.
+4. Start Velocity once to generate `plugins/tkchat/config.yml`.
+5. Configure MongoDB in `mongodb`, preferably by supplying credentials through the
+   `TKCHAT_MONGODB_URI` environment variable.
+6. Leave RabbitMQ disabled for one Velocity process, or configure a unique `instance-id` and
+   RabbitMQ URI for a multi-proxy network.
+7. Restart Velocity. Collections and indexes are created automatically.
+
+Use a unique RabbitMQ `instance-id` per Velocity process. Each instance receives its own queue;
+sharing a queue name would load-balance messages instead of broadcasting them.
+
+## Permissions
+
+tkChat denies by default. Grant the nodes appropriate for each group:
+
+Permission names are fixed in code rather than configurable. LuckPerms normalizes nodes to
+lowercase, so the documented form is `tkchat` even though the plugin name is styled `tkChat`.
+
+| Pattern | Purpose |
+|---|---|
+| `tkchat.command.<command>` | Use a tkChat command |
+| `tkchat.channels.<channel>.send` | Send to a configured channel |
+| `tkchat.channels.<channel>.receive` | Receive a configured channel |
+| `tkchat.format.<format>` | Use an allowed MiniMessage style in the player's own messages |
+| `tkchat.bypass.ratelimit` | Ignore the chat rate limit |
+| `tkchat.bypass.links` | Include clickable URLs |
+| `tkchat.bypass.private_groups` | Join private groups without an invite or password |
+| `tkchat.bypass.channel_restrictions` | Ignore channel and group send/receive restrictions |
+| `tkchat.bypass.chat_clear` | Keep chat history when `/clearchat` is used |
+
+Command nodes are `channel`, `message`, `reply`, `group`, `groupchat`, `ignore`, `dmtoggle`,
+`broadcast`, `clearchat`, `socialspy`, and `reload`. Aliases and `/tkchat` subcommands use their
+canonical command's permission.
+
+Player MiniMessage formatting permissions are:
+
+- Decorations: `bold`, `italic`, `underlined`, `strikethrough`, and `obfuscated`.
+- Named colors: `black`, `dark_blue`, `dark_green`, `dark_aqua`, `dark_red`, `dark_purple`,
+  `gold`, `gray`, `dark_gray`, `blue`, `green`, `aqua`, `red`, `light_purple`, `yellow`, and
+  `white`. MiniMessage's `grey` and `dark_grey` aliases use the corresponding `gray` permission.
+- Other visual formats: `hex`, `gradient`, `transition`, `rainbow`, `pride`, `shadow`, `font`,
+  `reset`, and `newline`.
+
+For example, `<red>`, `<color:red>`, and `<c:red>` require `tkchat.format.red`; color arguments
+inside gradients, transitions, and shadows also require their matching named-color or `hex`
+permission. Standard decoration aliases such as `<b>`, `<i>`, `<em>`, `<u>`, `<st>`, and `<obf>`
+use their canonical permission. LuckPerms administrators can grant every style with
+`tkchat.format.*`.
+
+Behavior/content tags are deliberately unavailable in player messages: click, hover, insertion,
+selector, score, NBT, translation, keybind, sprite, and head tags remain visible as literal input.
+
+Example:
+
+```text
+/lp group default permission set tkchat.command.channel true
+/lp group default permission set tkchat.command.message true
+/lp group default permission set tkchat.command.reply true
+/lp group default permission set tkchat.command.group true
+/lp group default permission set tkchat.command.groupchat true
+/lp group default permission set tkchat.command.ignore true
+/lp group default permission set tkchat.command.dmtoggle true
+/lp group default permission set tkchat.channels.global.send true
+/lp group default permission set tkchat.channels.global.receive true
+/lp group default permission set tkchat.channels.local.send true
+/lp group default permission set tkchat.channels.local.receive true
+/lp group default permission set tkchat.channels.group.send true
+/lp group default permission set tkchat.channels.group.receive true
+/lp user tkkr permission set tkchat.format.* true
+```
+
+Configured channels live under `channels` in `plugins/tkchat/config.yml`. Each channel controls its
+ID, command aliases, display name, network/server scope, and MiniMessage format. Its permission
+nodes are derived from the ID. Grant `tkchat.bypass.channel_restrictions` and
+`tkchat.bypass.private_groups` to administrators who should bypass locked channels and private
+group access.
+
+The active backend name is explicitly added as LuckPerms' `server` context. World, dimension,
+gamemode, region, and other backend-only contexts are not inferred by the proxy in this release.
+
+## Commands
+
+- `/tkchat <command>` provides every full command under a stable plugin-owned root. It does not
+  expose short command aliases as subcommands, but `/tkchat channel <channel>` accepts configured
+  channel aliases such as `g` and `l`.
+- `/tkchat reload` reloads the Velocity configuration (`tkchat.command.reload`).
+- `/channel [channel]` (`/ch`)
+- `/<channel> [message]` and any configured alias, such as `/g` or `/l`; an omitted message
+  switches channel and a supplied message sends once without switching
+- `/msg <player> <message>` (`/tell`, `/w`, `/message`)
+- `/reply <message>` (`/r`)
+- `/group create <name> [password]` (no password creates a public group; providing one creates a private group)
+- `/group list`
+- `/group join <name> [password]`
+- `/group invite <player>`
+- `/group accept <name>` (invite messages include a clickable accept button)
+- `/group leave`
+- `/group chat <message>`
+- `/groupchat [message]` (`/gc`, `/pc`); an omitted message switches to the group channel
+- `/ignore <player>` (`/block`)
+- `/dmtoggle`
+- `/broadcast <message>` (`/bc`)
+- `/clearchat <channel>` (channel aliases such as `g` and `l` are accepted)
+- `/socialspy [on|off]` (`/spy`)
+
+Full root-command examples include `/tkchat channel global`, `/tkchat channel g`,
+`/tkchat local [message]`, `/tkchat message <player> <message>`,
+`/tkchat broadcast <message>`, and `/tkchat clearchat <channel>`. Standalone commands and their
+aliases remain available when another plugin has not claimed them.
+
+Reloading applies channels, channel command aliases, the default channel, chat limits and rate
+limits, formats, mentions, item links, clear-chat settings, SignedVelocity enforcement, and the
+LibertyBans fail-closed setting. Players whose selected channel was removed are moved to the new
+default channel. Changes to `instance-id`, `mongodb`, or `rabbitmq` are validated but require a
+Velocity restart because they own long-lived storage or transport connections; the command reports
+those sections after an otherwise successful reload.
+
+The proxy also intercepts `/minecraft:msg`, `/minecraft:tell`, and `/minecraft:w`, preventing a
+namespaced vanilla bypass.
+
+Group names are unique case-insensitively and match `[A-Za-z0-9_-]{1,32}`. A member's group appears
+in `/channel` under its normalized name, so `/channel builders` switches normal chat into the
+`Builders` group. Private-group passwords are stored only as salted PBKDF2-SHA256 hashes;
+invitations bypass the password and expire after five minutes.
+
+## Chat features
+
+- Broadcasts and chat clearing fan out through the network transport. Clearing a global channel
+  clears chat for every player on the network; clearing a server-scoped channel only clears chat
+  for players on the command sender's current backend. Because Minecraft uses one chat history,
+  clearing a channel also removes the recipient's visible messages from other channels.
+- Ignores apply to channel, group, and direct chat. Staff mutes remain LibertyBans' responsibility;
+  tkChat uses LibertyBans' cached mute lookup for every routed player message.
+- Case-insensitive `@Username` mentions can highlight the recipient's name and play a configurable
+  sound. Mention styling and sound settings live under `mentions`.
+- `<item>` and `[item]` link the sender's main-hand item. The Velocity plugin asks the Paper or
+  exact-version Fabric bridge for its identifier, amount, and display name, then renders a hoverable
+  item component. Placeholders, visible format, and timeout are configurable under `item-links`.
+- Social spy is a per-session toggle that shows eligible staff channel, group, and direct messages
+  they would not normally receive.
+- Channel, group, direct-message, broadcast, clear, social-spy, mention, and item-link presentation
+  remain customizable with MiniMessage formats in the Velocity config. Backend configuration stays
+  limited to backend-local concerns.
+
+Discord integration, runtime-created custom channels, multi-language messages, and proximity chat
+are intentionally outside the current scope.
+
+## Failure behavior
+
+- LibertyBans is fail-closed by default: a failed mute lookup rejects the message.
+- MongoDB startup failure prevents tkChat from registering chat listeners unless
+  `mongodb.fallback-to-memory` is explicitly enabled.
+- RabbitMQ may fall back to delivery inside the current Velocity process. Disable
+  `rabbitmq.fallback-to-local` when a multi-proxy network should fail closed instead.
+- Live RabbitMQ messages expire after 60 seconds to avoid replaying stale chat after downtime.
+
+## Multi-proxy note
+
+Global channels and already-addressed group messages fan out across multiple Velocity instances.
+Name lookup for `/msg` and `/group invite` currently searches the current Velocity process, which
+matches the single-proxy topology this project was designed for. A shared presence directory is the
+remaining requirement before those two commands can target a player connected to another proxy.

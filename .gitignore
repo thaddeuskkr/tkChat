@@ -1,0 +1,59 @@
+# Gradle and build artifacts
+/.gradle/
+/.kotlin/
+/build/
+**/build/
+*.class
+
+# Local Minecraft/Fabric/Paper/Velocity run directories
+/run/
+**/run/
+
+# IDE metadata
+/.idea/
+/.fleet/
+/.vscode/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+out/
+
+# Local machine configuration and secrets
+local.properties
+.env
+.env.*
+!.env.example
+forwarding.secret
+
+# Minecraft runtime files created outside a run directory
+eula.txt
+server.properties
+usercache.json
+ops.json
+whitelist.json
+banned-ips.json
+banned-players.json
+logs/
+crash-reports/
+world/
+world_nether/
+world_the_end/
+
+# JVM diagnostics and temporary files
+hs_err_pid*
+replay_pid*
+*.hprof
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+
+# Operating-system metadata
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini

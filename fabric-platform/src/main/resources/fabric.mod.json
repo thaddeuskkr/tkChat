@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "tkchat",
+  "version": "${version}",
+  "name": "tkChat",
+  "description": "Fabric backend bridge for the Velocity-led tkChat network chat system",
+  "authors": ["tkkr"],
+  "license": "MIT",
+  "environment": "server",
+  "entrypoints": {
+    "server": [
+      "dev.tkkr.tkchat.fabric.TkChatFabricMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "fabric-api": ">=${fabricApiVersion}",
+    "java": ">=${javaVersion}",
+    "minecraft": "=${minecraftVersion}",
+    "signedvelocity": "*"
+  }
+}

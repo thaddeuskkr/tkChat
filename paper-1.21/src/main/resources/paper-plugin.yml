@@ -1,0 +1,12 @@
+name: tkChat
+version: '${version}'
+main: dev.tkkr.tkchat.paper.TkChatPaperPlugin
+description: Paper backend bridge for tkChat
+api-version: '1.21'
+authors: [tkkr]
+dependencies:
+  server:
+    SignedVelocity:
+      load: BEFORE
+      required: false
+      join-classpath: false

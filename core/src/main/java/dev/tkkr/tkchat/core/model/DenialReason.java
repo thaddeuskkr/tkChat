@@ -1,0 +1,16 @@
+package dev.tkkr.tkchat.core.model;
+
+public enum DenialReason {
+    NOT_READY,
+    UNKNOWN_CHANNEL,
+    NO_PERMISSION,
+    MUTED,
+    LINKS_NOT_ALLOWED,
+    RATE_LIMITED,
+    INVALID_MESSAGE,
+    DIRECT_MESSAGES_DISABLED,
+    IGNORED,
+    NOT_IN_GROUP,
+    STORAGE_UNAVAILABLE,
+    INTERNAL_ERROR
+}
