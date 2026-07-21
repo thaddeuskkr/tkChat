@@ -62,8 +62,8 @@ Build a particular Fabric artifact:
 ```
 
 Build every release artifact with `./gradlew releaseArtifacts`. Release jars are written under the
-plugin-version folder, such as `build/releases/0.5.0/`, and include the plugin version in each jar
-name, such as `tkChat-Velocity-0.5.0.jar`.
+plugin-version folder, such as `build/releases/0.6.0/`, and include the plugin version in each jar
+name, such as `tkChat-Velocity-0.6.0.jar`.
 The three Paper family jars share one implementation. The 1.21.x jar is compiled against Paper
 1.21, the 26.1.x jar against Paper 26.1.1, and the 26.2.x jar against Paper 26.2. Compiling against
 the oldest published API in each family prevents accidental use of methods that are unavailable on
@@ -79,7 +79,7 @@ when invoking the complete matrix.
 
 Publishing is automated by `.github/workflows/publish-modrinth.yml`. When a push to `main` changes
 `projectVersion`, the workflow verifies the new version, builds and tests the complete matrix,
-creates the matching GitHub tag and release (for example, `v0.5.0`), attaches all 9 jars, and then
+creates the matching GitHub tag and release (for example, `v0.6.0`), attaches all 9 jars, and then
 publishes every Velocity, Paper, and Fabric artifact to Modrinth. No GitHub release needs to be
 created manually.
 
@@ -150,14 +150,17 @@ lowercase, so the documented form is `tkchat` even though the plugin name is sty
 | Pattern | Purpose |
 |---|---|
 | `tkchat.command.<command>` | Use a tkChat command |
-| `tkchat.channels.<channel>.send` | Send to a configured channel |
-| `tkchat.channels.<channel>.receive` | Receive a configured channel |
+| `tkchat.channel.<channel>.send` | Send to a configured channel |
+| `tkchat.channel.<channel>.receive` | Receive a configured channel |
 | `tkchat.format.<format>` | Use an allowed MiniMessage style in the player's own messages |
 | `tkchat.bypass.ratelimit` | Ignore the chat rate limit |
 | `tkchat.bypass.links` | Include clickable URLs |
 | `tkchat.bypass.private_groups` | Join private groups without an invite or password |
 | `tkchat.bypass.channel_restrictions` | Ignore channel and group send/receive restrictions |
 | `tkchat.bypass.chat_clear` | Keep chat history when `/clearchat` is used |
+
+Version 0.6.0 renames the former `tkchat.channels.<channel>.*` nodes to
+`tkchat.channel.<channel>.*`; update existing LuckPerms grants when upgrading.
 
 Command nodes are `channel`, `message`, `reply`, `me`, `group`, `groupchat`, `ignore`, `dmtoggle`,
 `broadcast`, `clearchat`, `socialspy`, and `reload`. Aliases and `/tkchat` subcommands use their
@@ -192,12 +195,12 @@ Example:
 /lp group default permission set tkchat.command.groupchat true
 /lp group default permission set tkchat.command.ignore true
 /lp group default permission set tkchat.command.dmtoggle true
-/lp group default permission set tkchat.channels.global.send true
-/lp group default permission set tkchat.channels.global.receive true
-/lp group default permission set tkchat.channels.local.send true
-/lp group default permission set tkchat.channels.local.receive true
-/lp group default permission set tkchat.channels.group.send true
-/lp group default permission set tkchat.channels.group.receive true
+/lp group default permission set tkchat.channel.global.send true
+/lp group default permission set tkchat.channel.global.receive true
+/lp group default permission set tkchat.channel.local.send true
+/lp group default permission set tkchat.channel.local.receive true
+/lp group default permission set tkchat.channel.group.send true
+/lp group default permission set tkchat.channel.group.receive true
 /lp user tkkr permission set tkchat.format.* true
 ```
 

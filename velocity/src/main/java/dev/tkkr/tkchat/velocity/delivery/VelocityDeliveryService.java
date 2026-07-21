@@ -210,7 +210,7 @@ public final class VelocityDeliveryService {
                 return false;
             }
             return message.routeKind() != RouteKind.GROUP
-                    || access.hasPermission(player, "tkchat.channels.group.receive")
+                    || access.hasPermission(player, "tkchat.channel.group.receive")
                     || access.hasPermission(player, Permissions.BYPASS_CHANNEL_RESTRICTIONS);
         }
         ChannelDefinition channel = channels.find(message.channelId()).orElse(null);

@@ -17,11 +17,11 @@ public final class Permissions {
     }
 
     public static String channelSend(String channel) {
-        return "tkchat.channels." + normalize(channel) + ".send";
+        return "tkchat.channel." + normalize(channel) + ".send";
     }
 
     public static String channelReceive(String channel) {
-        return "tkchat.channels." + normalize(channel) + ".receive";
+        return "tkchat.channel." + normalize(channel) + ".receive";
     }
 
     public static String format(String format) {

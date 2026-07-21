@@ -251,7 +251,7 @@ class ChatRouterTest {
         return new ChatRouter(
                 new ChannelRegistry(List.of(new ChannelDefinition(
                         "global", "Global", ChannelScope.GLOBAL,
-                        "tkchat.channels.global.send", "tkchat.channels.global.receive",
+                        "tkchat.channel.global.send", "tkchat.channel.global.receive",
                         "tkchat.bypass.channel_restrictions", List.of("g"), "<message>"))),
                 accessController,
                 repository,

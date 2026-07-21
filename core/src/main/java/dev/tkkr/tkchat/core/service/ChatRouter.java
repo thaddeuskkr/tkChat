@@ -121,7 +121,7 @@ public final class ChatRouter {
         }
         boolean containsLink = URL.matcher(content).find();
         return accessController.authorize(
-                        sender, "tkchat.channels.group.send", groupBypassPermission, containsLink)
+                        sender, "tkchat.channel.group.send", groupBypassPermission, containsLink)
                 .thenCompose(access -> {
                     if (!access.allowed()) {
                         return CompletableFuture.completedFuture(
@@ -134,8 +134,8 @@ public final class ChatRouter {
                         }
                         ChatStateProvider.GroupState groupState = state.get();
                         ChannelDefinition group = syntheticChannel(
-                                "group", "Group", "tkchat.channels.group.send",
-                                "tkchat.channels.group.receive",
+                                "group", "Group", "tkchat.channel.group.send",
+                                "tkchat.channel.group.receive",
                                 groupBypassPermission);
                         return (RouteDecision) approved(sender, group, RouteKind.GROUP,
                                 groupState.group().id().toString(), groupState.group().name(),

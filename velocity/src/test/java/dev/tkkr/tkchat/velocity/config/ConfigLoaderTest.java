@@ -22,7 +22,7 @@ class ConfigLoaderTest {
 
         assertTrue(yaml.contains("mariadb:"));
         assertTrue(yaml.contains("rabbitmq:"));
-        assertEquals("tkchat.channels.global.send",
+        assertEquals("tkchat.channel.global.send",
                 config.channelDefinitions().getFirst().sendPermission());
         assertEquals("global", config.channelDefinitions().getFirst().id());
         assertTrue(config.channelDefinitions().getFirst().aliases().contains("g"));
@@ -87,7 +87,7 @@ class ConfigLoaderTest {
     @Test
     void permissionNodesFollowFixedScheme() {
         assertEquals("tkchat.command.broadcast", Permissions.command("Broadcast"));
-        assertEquals("tkchat.channels.staff_chat.receive", Permissions.channelReceive("Staff-Chat"));
+        assertEquals("tkchat.channel.staff_chat.receive", Permissions.channelReceive("Staff-Chat"));
         assertEquals("tkchat.bypass.private_groups", Permissions.BYPASS_PRIVATE_GROUPS);
         assertEquals("tkchat.format.dark_blue", Permissions.format("dark-blue"));
     }
