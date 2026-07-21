@@ -39,9 +39,12 @@ evaluates permissions and mutes, and inserts player input only as literal text.
 - RabbitMQ (optional; only needed when multiple Velocity processes must fan out chat)
 - Java 21 for Minecraft 1.21.x and Java 25 for Minecraft 26.x
 
-The Minecraft 1.21.x Fabric artifact has a tested compatibility floor of Fabric Loader 0.18.4. On
-Minecraft 1.21.1, its tested Fabric API floor is 0.116.13+1.21.1. Newer compatible API and loader
-versions remain valid.
+The Minecraft 1.21.x Fabric artifact accepts Fabric Loader 0.15.11 and newer. The matching Fabric
+API may require a newer loader on later 1.21.x releases; for example, the tested 1.21.11 API requires
+Loader 0.17.3. The Minecraft 26.1.x and 26.2 artifacts accept Fabric Loader 0.19.0 and newer. The
+current SignedVelocity builds for Minecraft 26.x require Loader 0.19.3, so complete installations
+using those builds retain that effective minimum. Newer compatible API and loader versions remain
+valid.
 
 LuckPerms and LibertyBans are not required on backend servers. The backend artifacts intentionally
 contain no moderation or routing authority.

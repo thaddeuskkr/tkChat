@@ -34,7 +34,7 @@ val minecraftDependency = when (minecraftVersion) {
 }
 val javaVersion = if (minecraftVersion.startsWith("26.")) 25 else 21
 val modernMinecraft = minecraftVersion.startsWith("26.")
-val fabricLoaderVersion = if (minecraftVersion == "1.21") "0.18.4" else "0.19.3"
+val fabricLoaderVersion = if (minecraftVersion == "1.21") "0.15.11" else "0.19.0"
 val artifactVersion = project.version.toString()
 
 pluginManager.apply(if (modernMinecraft) "net.fabricmc.fabric-loom" else "fabric-loom")
