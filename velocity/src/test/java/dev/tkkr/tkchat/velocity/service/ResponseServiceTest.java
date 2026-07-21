@@ -44,6 +44,8 @@ class ResponseServiceTest {
 
         assertEquals("Usage: /msg <player> <message>", plain(
                 responses.message(ResponseKey.DIRECT_USAGE)));
+        assertEquals("Usage: /channel <channel> [player]", plain(
+                responses.message(ResponseKey.CHANNEL_USAGE)));
         assertEquals("Usage: /group <create|list|join|invite|accept|leave|chat>", plain(
                 responses.message(ResponseKey.GROUP_ROOT_USAGE)));
     }

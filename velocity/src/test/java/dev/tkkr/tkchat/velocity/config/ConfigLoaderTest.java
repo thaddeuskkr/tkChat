@@ -67,7 +67,11 @@ class ConfigLoaderTest {
                 "me:\n"
                         + "  player-only: '<red>Only players can use /me.</red>'\n"
                         + "  usage: '<red>Usage: /me <action> (maximum <max_length> characters)</red>'\n\n",
-                "");
+                "")
+                .replace("  active-set-other: '<green>Set <player>''s active channel to <channel>.</green>'\n", "")
+                .replace("  active-set-forced: '<green>Your active channel was set to <channel>.</green>'\n", "")
+                .replace("  target-offline: '<red>That player is not online.</red>'\n", "")
+                .replace("  target-not-ready: '<red>That player''s chat data is not ready.</red>'\n", "");
         Files.writeString(messagesPath, oldMessages);
 
         AppConfig upgraded = new ConfigLoader().load(directory);
@@ -80,6 +84,8 @@ class ConfigLoaderTest {
         assertEquals("<yellow><name> left the server.</yellow>", upgraded.formats.leave);
         assertEquals("<red>Usage: /me <action> (maximum <max_length> characters)</red>",
                 upgraded.messages.template(ResponseKey.ME_USAGE));
+        assertEquals("<green>Set <player>'s active channel to <channel>.</green>",
+                upgraded.messages.template(ResponseKey.CHANNEL_ACTIVE_SET_OTHER));
         assertEquals(oldConfig, Files.readString(configPath));
         assertEquals(oldMessages, Files.readString(messagesPath));
     }
@@ -87,6 +93,7 @@ class ConfigLoaderTest {
     @Test
     void permissionNodesFollowFixedScheme() {
         assertEquals("tkchat.command.broadcast", Permissions.command("Broadcast"));
+        assertEquals("tkchat.command.channel.others", Permissions.CHANNEL_OTHERS);
         assertEquals("tkchat.channel.staff_chat.receive", Permissions.channelReceive("Staff-Chat"));
         assertEquals("tkchat.bypass.private_groups", Permissions.BYPASS_PRIVATE_GROUPS);
         assertEquals("tkchat.format.dark_blue", Permissions.format("dark-blue"));

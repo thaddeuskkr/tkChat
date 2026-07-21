@@ -3,6 +3,7 @@ package dev.tkkr.tkchat.velocity;
 import java.util.Locale;
 
 public final class Permissions {
+    public static final String CHANNEL_OTHERS = "tkchat.command.channel.others";
     public static final String BYPASS_RATE_LIMIT = "tkchat.bypass.ratelimit";
     public static final String BYPASS_LINKS = "tkchat.bypass.links";
     public static final String BYPASS_PRIVATE_GROUPS = "tkchat.bypass.private_groups";

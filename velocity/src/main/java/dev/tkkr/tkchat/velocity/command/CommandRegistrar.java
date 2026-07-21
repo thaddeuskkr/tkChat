@@ -105,14 +105,15 @@ public final class CommandRegistrar {
             AppConfig config,
             Supplier<CompletionStage<ConfigReloadResult>> reload
     ) {
-        ChannelCommand channelCommand = new ChannelCommand(channels, states, access, responses);
+        ChannelCommand channelCommand = new ChannelCommand(proxy, channels, states, access, responses);
         LinkedHashMap<String, TkChatCommand.Child> rootChildren = new LinkedHashMap<>();
         ArrayList<CommandSpec> specs = new ArrayList<>();
 
         add(specs, rootChildren, "channel", "channel", Permissions.command("channel"),
                 channelCommand,
-                "/tkchat channel [channel]",
-                "View available chat channels or choose your active channel.",
+                "/tkchat channel [channel] [player]",
+                "View or choose an active channel; targeting another player requires "
+                        + Permissions.CHANNEL_OTHERS + ".",
                 "ch");
         add(specs, rootChildren, "msg", "message", Permissions.command("message"),
                 new MessageCommand(proxy, chat, responses),

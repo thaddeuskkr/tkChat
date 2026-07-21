@@ -150,6 +150,7 @@ lowercase, so the documented form is `tkchat` even though the plugin name is sty
 | Pattern | Purpose |
 |---|---|
 | `tkchat.command.<command>` | Use a tkChat command |
+| `tkchat.command.channel.others` | Change another online player's active channel |
 | `tkchat.channel.<channel>.send` | Send to a configured channel |
 | `tkchat.channel.<channel>.receive` | Receive a configured channel |
 | `tkchat.format.<format>` | Use an allowed MiniMessage style in the player's own messages |
@@ -230,10 +231,11 @@ gamemode, region, and other backend-only contexts are not inferred by the proxy 
   `/tkchat help <command>` shows that command's description, usage, standalone commands, and
   permission node.
 - `/tkchat <command>` provides every full command under a stable plugin-owned root. It does not
-  expose short command aliases as subcommands, but `/tkchat channel <channel>` accepts configured
-  channel aliases such as `g` and `l`.
+  expose short command aliases as subcommands, but `/tkchat channel <channel> [player]` accepts
+  configured channel aliases such as `g` and `l`.
 - `/tkchat reload` reloads the Velocity configuration (`tkchat.command.reload`).
-- `/channel [channel]` (`/ch`)
+- `/channel [channel] [player]` (`/ch`); changing another player's channel requires
+  `tkchat.command.channel.others`
 - `/<channel> [message]` and any configured alias, such as `/g` or `/l`; an omitted message
   switches channel and a supplied message sends once without switching
 - `/msg <player> <message>` (`/tell`, `/w`, `/message`)

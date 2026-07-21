@@ -95,7 +95,7 @@ class TkChatCommandTest {
         ArrayList<Component> messages = new ArrayList<>();
         TkChatCommand root = new TkChatCommand(List.of(
                 child("channel", "tkchat.command.channel", invocation -> {
-                }, "/tkchat channel [channel]", "Choose your active channel.", "channel", "ch"),
+                }, "/tkchat channel [channel] [player]", "Choose an active channel.", "channel", "ch"),
                 child("reload", "tkchat.command.reload", invocation -> {
                 }, "/tkchat reload", "Reload the configuration.")),
                 "0.6.0", responses());
@@ -105,7 +105,7 @@ class TkChatCommandTest {
 
         assertEquals(List.of(
                 "tkChat » Running tkChat v0.6.0",
-                "tkChat » /tkchat channel [channel]",
+                "tkChat » /tkchat channel [channel] [player]",
                 "tkChat » /tkchat help [command]"), plain(messages));
 
         messages.clear();
@@ -113,8 +113,8 @@ class TkChatCommandTest {
 
         assertEquals(List.of(
                 "tkChat » /tkchat channel",
-                "tkChat » Choose your active channel.",
-                "tkChat » Usage: /tkchat channel [channel]",
+                "tkChat » Choose an active channel.",
+                "tkChat » Usage: /tkchat channel [channel] [player]",
                 "tkChat » Standalone commands: /channel, /ch",
                 "tkChat » Permission: tkchat.command.channel"), plain(messages));
 
