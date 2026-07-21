@@ -74,6 +74,13 @@ formats:
   broadcast: '<dark_gray>[</dark_gray><gold>Broadcast</gold><dark_gray>]</dark_gray> <message>'
   chat-clear: '<gray><target> chat was cleared by <white><name></white>.</gray>'
   social-spy: '<dark_gray>[Spy: <target>]</dark_gray> <name><dark_gray>: </dark_gray><message>'
+  # Join/leave announcements. Available placeholders are <name> and <server>.
+  # Global messages reach the rest of the network; local messages replace them on the
+  # player's current server. Set any value to '' to disable that announcement.
+  global-join: ''
+  global-leave: ''
+  join: '<yellow><name> joined the server.</yellow>'
+  leave: '<yellow><name> left the server.</yellow>'
 
 channels:
   - id: global

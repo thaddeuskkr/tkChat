@@ -45,4 +45,20 @@ class ApprovedMessageSerializationTest {
         assertEquals(original, decoded);
         org.junit.jupiter.api.Assertions.assertTrue(decoded.hasActionMarker());
     }
+
+    @Test
+    void preservesLifecycleMarkersAcrossNetworkSerialization() throws Exception {
+        ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        ApprovedMessage original = new ApprovedMessage(
+                UUID.randomUUID(), Instant.parse("2026-07-20T12:00:00Z"), RouteKind.BROADCAST,
+                "global_join", "global_join", "presence", ChannelScope.GLOBAL,
+                UUID.randomUUID(), "Alice", "lobby", "", "", "Alice joined.",
+                Set.of(), null, Set.of()).asGlobalJoinMessage();
+
+        ApprovedMessage decoded = mapper.readValue(
+                mapper.writeValueAsBytes(original), ApprovedMessage.class);
+
+        assertEquals(original, decoded);
+        org.junit.jupiter.api.Assertions.assertTrue(decoded.hasGlobalJoinMarker());
+    }
 }

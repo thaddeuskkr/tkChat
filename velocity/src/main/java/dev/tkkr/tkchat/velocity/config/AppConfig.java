@@ -108,6 +108,10 @@ public final class AppConfig {
         if (formats.me == null) {
             throw new IllegalArgumentException("formats.me cannot be null");
         }
+        if (formats.join == null || formats.leave == null
+                || formats.globalJoin == null || formats.globalLeave == null) {
+            throw new IllegalArgumentException("join and leave formats cannot be null");
+        }
     }
 
     public ChatPolicy policy() {
@@ -197,6 +201,10 @@ public final class AppConfig {
         public String broadcast = "<dark_gray>[</dark_gray><gold>Broadcast</gold><dark_gray>]</dark_gray> <message>";
         public String chatClear = "<gray><target> chat was cleared by <white><name></white>.</gray>";
         public String socialSpy = "<dark_gray>[Spy: <target>]</dark_gray> <name><dark_gray>: </dark_gray><message>";
+        public String globalJoin = "";
+        public String globalLeave = "";
+        public String join = "<yellow><name> joined the server.</yellow>";
+        public String leave = "<yellow><name> left the server.</yellow>";
     }
 
     public static final class Channel {

@@ -40,6 +40,10 @@ class ConfigLoaderTest {
         assertTrue(yaml.contains("max-queued-operations: 1024"));
         assertTrue(yaml.contains("response-prefix:"));
         assertTrue(yaml.contains("me: '<gray>* </gray><prefix><name><suffix> <message>'"));
+        assertTrue(yaml.contains("global-join: ''"));
+        assertTrue(yaml.contains("join: '<yellow><name> joined the server.</yellow>'"));
+        assertEquals("", config.formats.globalLeave);
+        assertEquals("<yellow><name> left the server.</yellow>", config.formats.leave);
         assertTrue(messages.contains("no-permission:"));
         assertTrue(messages.contains("Usage: /me <action>"));
         assertTrue(messages.contains("invite-received:"));
@@ -52,7 +56,11 @@ class ConfigLoaderTest {
         new ConfigLoader().load(directory);
         Path configPath = directory.resolve("config.yml");
         String oldConfig = Files.readString(configPath).replace(
-                "  me: '<gray>* </gray><prefix><name><suffix> <message>'\n", "");
+                "  me: '<gray>* </gray><prefix><name><suffix> <message>'\n", "")
+                .replace("  global-join: ''\n", "")
+                .replace("  global-leave: ''\n", "")
+                .replace("  join: '<yellow><name> joined the server.</yellow>'\n", "")
+                .replace("  leave: '<yellow><name> left the server.</yellow>'\n", "");
         Files.writeString(configPath, oldConfig);
         Path messagesPath = directory.resolve("messages.yml");
         String oldMessages = Files.readString(messagesPath).replace(
@@ -66,6 +74,10 @@ class ConfigLoaderTest {
 
         assertEquals("<gray>* </gray><prefix><name><suffix> <message>",
                 upgraded.formats.me);
+        assertEquals("", upgraded.formats.globalJoin);
+        assertEquals("", upgraded.formats.globalLeave);
+        assertEquals("<yellow><name> joined the server.</yellow>", upgraded.formats.join);
+        assertEquals("<yellow><name> left the server.</yellow>", upgraded.formats.leave);
         assertEquals("<red>Usage: /me <action> (maximum <max_length> characters)</red>",
                 upgraded.messages.template(ResponseKey.ME_USAGE));
         assertEquals(oldConfig, Files.readString(configPath));

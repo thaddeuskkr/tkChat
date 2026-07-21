@@ -249,9 +249,16 @@ invitation consumption, and affected active-channel repairs are transactional.
   item component. Placeholders, visible format, and timeout are configurable under `item-links`.
 - Social spy is a per-session toggle that shows eligible staff channel, group, and direct messages
   they would not normally receive.
-- Channel, group, action, direct-message, broadcast, clear, social-spy, mention, and item-link presentation
-  remain customizable with MiniMessage formats in the Velocity config. Backend configuration stays
-  limited to backend-local concerns.
+- Join and leave announcements are published after the initial backend connection succeeds.
+  `formats.join` and `formats.leave` reach only players on that backend; `formats.global-join` and
+  `formats.global-leave` are network-wide. All four accept MiniMessage plus `<name>` and `<server>`,
+  and an empty format disables that announcement. When local and global formats are both enabled,
+  the local format replaces the global one on the player's backend so nobody sees a duplicate. The
+  Paper and Fabric bridges suppress the corresponding vanilla messages, including misleading
+  join/leave lines during server switches.
+- Channel, group, action, direct-message, broadcast, clear, social-spy, join/leave, mention, and
+  item-link presentation remain customizable with MiniMessage formats in the Velocity config.
+  Backend configuration stays limited to backend-local concerns.
 
 ## Upgrade compatibility
 

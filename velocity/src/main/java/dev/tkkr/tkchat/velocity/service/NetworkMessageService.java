@@ -11,6 +11,7 @@ import dev.tkkr.tkchat.core.service.MessageTransport;
 import java.time.Instant;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.BiFunction;
 
@@ -52,6 +53,26 @@ public final class NetworkMessageService {
                 channel.id(), channel.scope(), ""));
     }
 
+    public CompletionStage<Void> playerJoined(Player player, String serverId) {
+        ApprovedMessage global = lifecycleMessage(
+                player, serverId, "global_join", ChannelScope.GLOBAL,
+                player.getUsername() + " joined the network.").asGlobalJoinMessage();
+        ApprovedMessage local = lifecycleMessage(
+                player, serverId, "join", ChannelScope.SERVER,
+                player.getUsername() + " joined the server.").asJoinMessage();
+        return publishBoth(global, local);
+    }
+
+    public CompletionStage<Void> playerLeft(Player player, String serverId) {
+        ApprovedMessage global = lifecycleMessage(
+                player, serverId, "global_leave", ChannelScope.GLOBAL,
+                player.getUsername() + " left the network.").asGlobalLeaveMessage();
+        ApprovedMessage local = lifecycleMessage(
+                player, serverId, "leave", ChannelScope.SERVER,
+                player.getUsername() + " left the server.").asLeaveMessage();
+        return publishBoth(global, local);
+    }
+
     private static ApprovedMessage message(
             CommandSource source,
             RouteKind kind,
@@ -73,5 +94,30 @@ public final class NetworkMessageService {
                 UUID.randomUUID(), Instant.now(), kind, routeId, routeDisplayName,
                 channelId, channelScope, senderId, senderName, serverId,
                 "", "", content, Set.of(), null, Set.of());
+    }
+
+    private static ApprovedMessage lifecycleMessage(
+            Player player,
+            String serverId,
+            String routeId,
+            ChannelScope scope,
+            String fallbackContent
+    ) {
+        return new ApprovedMessage(
+                UUID.randomUUID(), Instant.now(),
+                scope == ChannelScope.GLOBAL ? RouteKind.BROADCAST : RouteKind.CHANNEL,
+                routeId, routeId, "presence", scope,
+                player.getUniqueId(), player.getUsername(), serverId,
+                "", "", fallbackContent, Set.of(), null, Set.of());
+    }
+
+    private CompletionStage<Void> publishBoth(
+            ApprovedMessage global,
+            ApprovedMessage local
+    ) {
+        CompletionStage<Void> globalPublish = transport.publish(global);
+        CompletionStage<Void> localPublish = transport.publish(local);
+        return CompletableFuture.allOf(
+                globalPublish.toCompletableFuture(), localPublish.toCompletableFuture());
     }
 }

@@ -11,6 +11,7 @@ import dev.tkkr.tkchat.core.model.ItemLink;
 import dev.tkkr.tkchat.core.service.MessageTransport;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -56,6 +57,38 @@ class NetworkMessageServiceTest {
         assertEquals(linkedItem, transport.published.itemLink());
     }
 
+    @Test
+    void lifecycleMessagesPublishGlobalAndServerScopedVariants() {
+        CapturingTransport transport = new CapturingTransport();
+        NetworkMessageService messages = new NetworkMessageService(
+                transport, (player, message) -> CompletableFuture.completedFuture(message));
+        Player player = player();
+
+        messages.playerJoined(player, "lobby").toCompletableFuture().join();
+
+        ApprovedMessage globalJoin = transport.publishedMessages.get(0);
+        ApprovedMessage localJoin = transport.publishedMessages.get(1);
+        assertEquals(RouteKind.BROADCAST, globalJoin.routeKind());
+        assertEquals(ChannelScope.GLOBAL, globalJoin.channelScope());
+        org.junit.jupiter.api.Assertions.assertTrue(globalJoin.hasGlobalJoinMarker());
+        assertEquals("Broadcaster joined the network.", globalJoin.content());
+        assertEquals(RouteKind.CHANNEL, localJoin.routeKind());
+        assertEquals(ChannelScope.SERVER, localJoin.channelScope());
+        assertEquals("lobby", localJoin.senderServerId());
+        org.junit.jupiter.api.Assertions.assertTrue(localJoin.hasJoinMarker());
+        assertEquals("Broadcaster joined the server.", localJoin.content());
+
+        messages.playerLeft(player, "survival").toCompletableFuture().join();
+
+        ApprovedMessage globalLeave = transport.publishedMessages.get(2);
+        ApprovedMessage localLeave = transport.publishedMessages.get(3);
+        org.junit.jupiter.api.Assertions.assertTrue(globalLeave.hasGlobalLeaveMarker());
+        assertEquals("Broadcaster left the network.", globalLeave.content());
+        assertEquals("survival", localLeave.senderServerId());
+        org.junit.jupiter.api.Assertions.assertTrue(localLeave.hasLeaveMarker());
+        assertEquals("Broadcaster left the server.", localLeave.content());
+    }
+
     private static CommandSource console() {
         return permission -> Tristate.TRUE;
     }
@@ -88,6 +121,7 @@ class NetworkMessageServiceTest {
 
     private static final class CapturingTransport implements MessageTransport {
         private ApprovedMessage published;
+        private final List<ApprovedMessage> publishedMessages = new ArrayList<>();
 
         @Override
         public void start(Consumer<ApprovedMessage> listener) {
@@ -96,6 +130,7 @@ class NetworkMessageServiceTest {
         @Override
         public CompletionStage<Void> publish(ApprovedMessage message) {
             published = message;
+            publishedMessages.add(message);
             return CompletableFuture.completedFuture(null);
         }
 

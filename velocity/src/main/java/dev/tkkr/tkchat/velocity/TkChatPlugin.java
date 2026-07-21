@@ -221,7 +221,8 @@ public final class TkChatPlugin {
             registerRuntimeListener(itemLinks);
             registerRuntimeListener(new ChatListener(chat, states, responses));
             PlayerLifecycleListener lifecycle = new PlayerLifecycleListener(
-                    this, proxy, logger, states, conversations, spies, chat, responses);
+                    this, proxy, logger, states, conversations, spies, chat,
+                    networkMessages, responses);
             registerRuntimeListener(lifecycle);
             registerRuntimeListener(new VanillaCommandBypassListener(
                     proxy, chat, states, responses));

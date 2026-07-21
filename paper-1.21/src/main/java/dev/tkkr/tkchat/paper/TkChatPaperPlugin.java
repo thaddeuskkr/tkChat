@@ -14,6 +14,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.jetbrains.annotations.NotNull;
@@ -100,6 +102,16 @@ public final class TkChatPaperPlugin extends JavaPlugin implements Listener, Plu
                         .append(linkedMessage);
             }
         });
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void suppressBackendJoinMessage(PlayerJoinEvent event) {
+        event.joinMessage(null);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void suppressBackendQuitMessage(PlayerQuitEvent event) {
+        event.quitMessage(null);
     }
 
     private static Component linkify(Component input) {

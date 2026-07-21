@@ -4,9 +4,11 @@ import com.velocitypowered.api.event.EventTask;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.LoginEvent;
+import com.velocitypowered.api.event.player.ServerPostConnectEvent;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
 import dev.tkkr.tkchat.velocity.service.VelocityChatService;
+import dev.tkkr.tkchat.velocity.service.NetworkMessageService;
 import dev.tkkr.tkchat.velocity.service.ResponseService;
 import dev.tkkr.tkchat.velocity.config.ResponseKey;
 import dev.tkkr.tkchat.velocity.state.ConversationTracker;
@@ -26,6 +28,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class PlayerLifecycleListener {
     private static final long[] RETRY_DELAYS_SECONDS = {1, 5, 15, 30};
 
+    private record ConnectedPlayer(Player player, String serverId) {
+    }
+
     private final Object plugin;
     private final ProxyServer proxy;
     private final Logger logger;
@@ -33,9 +38,11 @@ public final class PlayerLifecycleListener {
     private final ConversationTracker conversations;
     private final SocialSpyService spies;
     private final VelocityChatService chat;
+    private final NetworkMessageService networkMessages;
     private final ResponseService responses;
     private final AtomicLong nextGeneration = new AtomicLong();
     private final ConcurrentMap<UUID, Long> generations = new ConcurrentHashMap<>();
+    private final ConcurrentMap<UUID, ConnectedPlayer> connectedPlayers = new ConcurrentHashMap<>();
 
     public PlayerLifecycleListener(
             Object plugin,
@@ -45,6 +52,7 @@ public final class PlayerLifecycleListener {
             ConversationTracker conversations,
             SocialSpyService spies,
             VelocityChatService chat,
+            NetworkMessageService networkMessages,
             ResponseService responses
     ) {
         this.plugin = plugin;
@@ -54,6 +62,7 @@ public final class PlayerLifecycleListener {
         this.conversations = conversations;
         this.spies = spies;
         this.chat = chat;
+        this.networkMessages = networkMessages;
         this.responses = responses;
     }
 
@@ -75,6 +84,7 @@ public final class PlayerLifecycleListener {
 
     /** Handles the unusual case where tkChat starts while players are already connected. */
     public void loadExisting(Player player) {
+        connectedPlayers.put(player.getUniqueId(), new ConnectedPlayer(player, serverId(player)));
         long generation = activate(player);
         states.load(player.getUniqueId()).whenComplete((ignored, error) -> {
             if (error != null) {
@@ -82,6 +92,27 @@ public final class PlayerLifecycleListener {
                         player.getUsername(), unwrap(error).toString());
                 scheduleRetry(player.getUniqueId(), generation, 0);
             }
+        });
+    }
+
+    @Subscribe
+    public void onServerPostConnect(ServerPostConnectEvent event) {
+        Player player = event.getPlayer();
+        String serverId = serverId(player);
+        ConnectedPlayer current = new ConnectedPlayer(player, serverId);
+        if (event.getPreviousServer() != null) {
+            connectedPlayers.compute(player.getUniqueId(), (ignored, connected) ->
+                    connected == null || connected.player() == player ? current : connected);
+            return;
+        }
+        ConnectedPlayer previous = connectedPlayers.put(player.getUniqueId(), current);
+        if (previous != null && previous.player() == player) {
+            return;
+        }
+        networkMessages.playerJoined(player, serverId).exceptionally(error -> {
+            logger.warn("Could not publish join message for {}: {}",
+                    player.getUsername(), unwrap(error).toString());
+            return null;
         });
     }
 
@@ -129,12 +160,28 @@ public final class PlayerLifecycleListener {
 
     @Subscribe
     public void onDisconnect(DisconnectEvent event) {
-        UUID playerId = event.getPlayer().getUniqueId();
+        Player player = event.getPlayer();
+        UUID playerId = player.getUniqueId();
+        ConnectedPlayer connected = connectedPlayers.get(playerId);
+        if (connected != null && connected.player() == player
+                && connectedPlayers.remove(playerId, connected)) {
+            networkMessages.playerLeft(player, connected.serverId()).exceptionally(error -> {
+                logger.warn("Could not publish leave message for {}: {}",
+                        player.getUsername(), unwrap(error).toString());
+                return null;
+            });
+        }
         generations.remove(playerId);
         states.remove(playerId);
         conversations.remove(playerId);
         spies.remove(playerId);
         chat.remove(playerId);
+    }
+
+    private static String serverId(Player player) {
+        return player.getCurrentServer()
+                .map(connection -> connection.getServerInfo().getName())
+                .orElse("unknown");
     }
 
     private static Throwable unwrap(Throwable error) {

@@ -106,6 +106,10 @@ public final class VelocityDeliveryService {
         if (!recentIds.first(message.messageId())) {
             return;
         }
+        String lifecycleTemplate = lifecycleTemplate(message, formats);
+        if (lifecycleTemplate != null && lifecycleTemplate.isEmpty()) {
+            return;
+        }
         PreparedMessage prepared = prepare(message);
         Map<String, Component> rendered = new HashMap<>();
         if (isAddressed(message)) {
@@ -169,6 +173,15 @@ public final class VelocityDeliveryService {
     }
 
     private boolean shouldReceive(Player player, ApprovedMessage message) {
+        if (message.hasJoinMarker() || message.hasLeaveMarker()) {
+            return isOnServer(player, message.senderServerId());
+        }
+        if (message.hasGlobalJoinMarker() || message.hasGlobalLeaveMarker()) {
+            boolean hasLocalOverride = message.hasGlobalJoinMarker()
+                    ? !formats.join.isEmpty()
+                    : !formats.leave.isEmpty();
+            return !hasLocalOverride || !isOnServer(player, message.senderServerId());
+        }
         if (message.routeKind() == RouteKind.BROADCAST) {
             return true;
         }
@@ -215,7 +228,9 @@ public final class VelocityDeliveryService {
     }
 
     private boolean shouldSpy(Player player, ApprovedMessage message) {
-        if (message.routeKind() == RouteKind.BROADCAST || message.routeKind() == RouteKind.CHAT_CLEAR
+        if (isLifecycleMessage(message)
+                || message.routeKind() == RouteKind.BROADCAST
+                || message.routeKind() == RouteKind.CHAT_CLEAR
                 || player.getUniqueId().equals(message.senderId())) {
             return false;
         }
@@ -239,6 +254,10 @@ public final class VelocityDeliveryService {
             ChannelRegistry channels,
             AppConfig.Formats formats
     ) {
+        String lifecycleTemplate = lifecycleTemplate(message, formats);
+        if (lifecycleTemplate != null) {
+            return lifecycleTemplate;
+        }
         if (message.hasActionMarker()) {
             return formats.me;
         }
@@ -308,11 +327,15 @@ public final class VelocityDeliveryService {
                 .resolver(Placeholder.component("suffix", prepared.suffix()))
                 .resolver(Placeholder.unparsed("target", message.routeDisplayName()))
                 .resolver(Placeholder.unparsed("channel", message.routeDisplayName()))
+                .resolver(Placeholder.unparsed("server", message.senderServerId()))
                 .resolver(Placeholder.component("message", content))
                 .build();
         try {
             return miniMessage.deserialize(template, placeholders);
         } catch (RuntimeException malformedTemplate) {
+            if (isLifecycleMessage(message)) {
+                return Component.text(message.content(), NamedTextColor.YELLOW);
+            }
             if (message.hasActionMarker()) {
                 return Component.text("* ", NamedTextColor.GRAY)
                         .append(Component.text(message.senderName() + " ", NamedTextColor.WHITE))
@@ -322,6 +345,36 @@ public final class VelocityDeliveryService {
                     .append(Component.text(message.senderName() + ": ", NamedTextColor.WHITE))
                     .append(content);
         }
+    }
+
+    private static String lifecycleTemplate(
+            ApprovedMessage message,
+            AppConfig.Formats formats
+    ) {
+        if (message.hasGlobalJoinMarker()) {
+            return formats.globalJoin;
+        }
+        if (message.hasGlobalLeaveMarker()) {
+            return formats.globalLeave;
+        }
+        if (message.hasJoinMarker()) {
+            return formats.join;
+        }
+        if (message.hasLeaveMarker()) {
+            return formats.leave;
+        }
+        return null;
+    }
+
+    private static boolean isLifecycleMessage(ApprovedMessage message) {
+        return message.hasGlobalJoinMarker() || message.hasGlobalLeaveMarker()
+                || message.hasJoinMarker() || message.hasLeaveMarker();
+    }
+
+    private static boolean isOnServer(Player player, String serverId) {
+        return player.getCurrentServer()
+                .map(connection -> connection.getServerInfo().getName().equals(serverId))
+                .orElse(false);
     }
 
     private Component mention(Component input, ApprovedMessage message, Player viewer) {
