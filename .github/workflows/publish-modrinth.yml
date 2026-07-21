@@ -3,8 +3,7 @@ name: Release tkChat
 on:
   push:
     branches: [main]
-    paths:
-      - gradle.properties
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -38,18 +37,15 @@ jobs:
           set -euo pipefail
 
           current_version="$(sed -n 's/^projectVersion=//p' gradle.properties | head -n 1 | tr -d '\r')"
-          previous_version="$(git show "$BEFORE_SHA:gradle.properties" 2>/dev/null \
-            | sed -n 's/^projectVersion=//p' | head -n 1 | tr -d '\r' || true)"
+          previous_version=""
+          if [[ -n "$BEFORE_SHA" && ! "$BEFORE_SHA" =~ ^0+$ ]]; then
+            previous_version="$(git show "$BEFORE_SHA:gradle.properties" 2>/dev/null \
+              | sed -n 's/^projectVersion=//p' | head -n 1 | tr -d '\r' || true)"
+          fi
 
           if [[ -z "$current_version" ]]; then
             echo "projectVersion is missing from gradle.properties." >&2
             exit 1
-          fi
-
-          if [[ "$current_version" == "$previous_version" ]]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "projectVersion remains $current_version; no release is required."
-            exit 0
           fi
 
           if [[ ! "$current_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
@@ -58,6 +54,15 @@ jobs:
           fi
 
           release_tag="v$current_version"
+          if [[ "$current_version" == "$previous_version" ]]; then
+            if git show-ref --tags --verify --quiet "refs/tags/$release_tag"; then
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              echo "projectVersion remains $current_version and $release_tag already exists; no release is required."
+              exit 0
+            fi
+            echo "projectVersion remains $current_version, but $release_tag does not exist; retrying the release."
+          fi
+
           if git show-ref --tags --verify --quiet "refs/tags/$release_tag"; then
             echo "Release tag $release_tag already exists." >&2
             exit 1

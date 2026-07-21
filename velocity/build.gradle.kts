@@ -85,6 +85,10 @@ tasks.named<JavaCompile>("compileJava") {
     dependsOn(generateBuildInfo)
 }
 
+tasks.named("sourcesJar") {
+    dependsOn(generateBuildInfo)
+}
+
 tasks {
     withType<JavaCompile>().configureEach {
         options.release.set(25)
