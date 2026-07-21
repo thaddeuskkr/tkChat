@@ -1,6 +1,7 @@
 plugins {
     java
     id("com.gradleup.shadow")
+    id("com.modrinth.minotaur")
 }
 
 dependencies {
@@ -52,5 +53,28 @@ tasks {
     }
     build {
         dependsOn(shadowJar)
+    }
+}
+
+modrinth {
+    token.set(providers.environmentVariable("MODRINTH_TOKEN"))
+    projectId.set(providers.environmentVariable("MODRINTH_PROJECT_ID"))
+    versionNumber.set(project.version.toString())
+    versionName.set("tkChat Velocity ${project.version}")
+    versionType.set(providers.environmentVariable("MODRINTH_VERSION_TYPE").orElse("release"))
+    changelog.set(providers.environmentVariable("MODRINTH_CHANGELOG").orElse(
+            "See https://github.com/thaddeuskkr/tkChat/releases/tag/v${project.version}"))
+    uploadFile.set(tasks.shadowJar)
+    gameVersions.addAll(
+        "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4", "1.21.5",
+        "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11",
+        "26.1", "26.1.1", "26.1.2", "26.2"
+    )
+    detectLoaders.set(false)
+    loaders.add("velocity")
+    dependencies {
+        required.project("luckperms")
+        required.project("libertybans")
+        optional.project("signedvelocity")
     }
 }

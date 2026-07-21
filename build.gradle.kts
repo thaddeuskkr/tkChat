@@ -1,6 +1,31 @@
+import org.gradle.api.DefaultTask
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.TaskAction
+
 plugins {
     java
     id("com.gradleup.shadow") version "9.5.1" apply false
+    id("com.modrinth.minotaur") version "2.9.0" apply false
+}
+
+abstract class VerifyReleaseVersion : DefaultTask() {
+    @get:Input
+    abstract val releaseTag: Property<String>
+
+    @get:Input
+    abstract val expectedVersion: Property<String>
+
+    @TaskAction
+    fun verify() {
+        val tag = releaseTag.get().trim()
+        if (tag.isNotEmpty()) {
+            val taggedVersion = tag.removePrefix("v")
+            check(taggedVersion == expectedVersion.get()) {
+                "Release tag $tag does not match projectVersion ${expectedVersion.get()}"
+            }
+        }
+    }
 }
 
 group = "dev.tkkr.tkchat"
@@ -47,4 +72,26 @@ tasks.register<Sync>("releaseArtifacts") {
     include("tkChat-*-${project.version}.jar")
     exclude("*-dev.jar", "*-sources.jar")
     into(layout.buildDirectory.dir("releases/${project.version}"))
+}
+
+tasks.register<VerifyReleaseVersion>("verifyReleaseVersion") {
+    group = "verification"
+    description = "Checks that the release tag matches projectVersion."
+    releaseTag.set(providers.environmentVariable("RELEASE_TAG").orElse(""))
+    expectedVersion.set(project.version.toString())
+}
+
+tasks.register("publishModrinth") {
+    group = "publishing"
+    description = "Publishes every Velocity, Paper, and Fabric release jar to Modrinth."
+    dependsOn("verifyReleaseVersion")
+    dependsOn(
+        subprojects
+            .filter { project ->
+                project.name == "velocity"
+                        || project.name.startsWith("paper-")
+                        || project.name.startsWith("fabric-")
+            }
+            .map { project -> "${project.path}:modrinth" }
+    )
 }

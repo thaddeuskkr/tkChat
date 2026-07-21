@@ -66,6 +66,27 @@ name, such as `tkChat-Velocity-0.4.1.jar`.
 Fabric 26.x tasks require Gradle itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation
 when invoking the complete matrix.
 
+## Modrinth publishing
+
+Publishing is automated by `.github/workflows/publish-modrinth.yml`. When a GitHub release is
+published, the workflow verifies that its tag (for example, `v0.4.1`) matches `projectVersion`,
+builds and tests the complete matrix, and then publishes every Velocity, Paper, and Fabric jar.
+Each jar receives its own Modrinth version entry with the correct loader and Minecraft versions,
+while all entries share the tkChat version number and GitHub release notes.
+
+Configure these values in the repository's `modrinth` GitHub environment before the first run:
+
+- Secret `MODRINTH_TOKEN`: a Modrinth personal access token with `CREATE_VERSION` permission.
+- Variable `MODRINTH_PROJECT_ID`: the Modrinth project ID or slug.
+
+The workflow can also be run manually, with a release channel and optional changelog. For a local
+publication, set `MODRINTH_TOKEN` and `MODRINTH_PROJECT_ID`, then run
+`./gradlew publishModrinth --no-parallel --no-configuration-cache`.
+
+`projectVersion` in `gradle.properties` is the release version source of truth. Bump it for runtime,
+configuration, compatibility, or artifact changes; documentation and release-workflow-only changes
+do not require a new plugin version.
+
 ## Live integration verification
 
 The gameplay and single-proxy transport path was exercised on July 20, 2026 using two authenticated Prism Launcher

@@ -3,6 +3,7 @@ import net.fabricmc.loom.task.RemapJarTask
 
 plugins {
     java
+    id("com.modrinth.minotaur")
 }
 
 val targets = mapOf(
@@ -85,5 +86,28 @@ tasks {
         named<RemapJarTask>("remapJar") {
             archiveFileName.set("tkChat-Fabric-$minecraftVersion-$artifactVersion.jar")
         }
+    }
+}
+
+modrinth {
+    token.set(providers.environmentVariable("MODRINTH_TOKEN"))
+    projectId.set(providers.environmentVariable("MODRINTH_PROJECT_ID"))
+    versionNumber.set(project.version.toString())
+    versionName.set("tkChat Fabric $minecraftVersion ${project.version}")
+    versionType.set(providers.environmentVariable("MODRINTH_VERSION_TYPE").orElse("release"))
+    changelog.set(providers.environmentVariable("MODRINTH_CHANGELOG").orElse(
+            "See https://github.com/thaddeuskkr/tkChat/releases/tag/v${project.version}"))
+    uploadFile.set(if (modernMinecraft) {
+        tasks.named<Jar>("jar")
+    } else {
+        tasks.named<RemapJarTask>("remapJar")
+    })
+    gameVersions.add(minecraftVersion)
+    detectLoaders.set(false)
+    loaders.add("fabric")
+    dependencies {
+        required.project("fabric-api")
+        required.project("fabricproxy-lite")
+        required.project("signedvelocity")
     }
 }

@@ -1,5 +1,6 @@
 plugins {
     java
+    id("com.modrinth.minotaur")
 }
 
 sourceSets {
@@ -27,5 +28,22 @@ tasks {
     }
     jar {
         archiveFileName.set("tkChat-Paper-26.2-$artifactVersion.jar")
+    }
+}
+
+modrinth {
+    token.set(providers.environmentVariable("MODRINTH_TOKEN"))
+    projectId.set(providers.environmentVariable("MODRINTH_PROJECT_ID"))
+    versionNumber.set(project.version.toString())
+    versionName.set("tkChat Paper 26.2 ${project.version}")
+    versionType.set(providers.environmentVariable("MODRINTH_VERSION_TYPE").orElse("release"))
+    changelog.set(providers.environmentVariable("MODRINTH_CHANGELOG").orElse(
+            "See https://github.com/thaddeuskkr/tkChat/releases/tag/v${project.version}"))
+    uploadFile.set(tasks.jar)
+    gameVersions.add("26.2")
+    detectLoaders.set(false)
+    loaders.addAll("paper", "purpur")
+    dependencies {
+        optional.project("signedvelocity")
     }
 }

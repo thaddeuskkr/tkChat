@@ -1,0 +1,72 @@
+name: Publish to Modrinth
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: Modrinth release channel
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - beta
+          - alpha
+      changelog:
+        description: Changelog used for a manual publication
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modrinth-${{ github.event.release.tag_name || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build, test, and publish
+    runs-on: ubuntu-latest
+    environment: modrinth
+    env:
+      MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
+      MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID }}
+      MODRINTH_VERSION_TYPE: ${{ github.event.release.prerelease && 'beta' || inputs.version_type || 'release' }}
+      MODRINTH_CHANGELOG: ${{ github.event.release.body || inputs.changelog || 'See the corresponding GitHub release for changes.' }}
+      RELEASE_TAG: ${{ github.event.release.tag_name || '' }}
+
+    steps:
+      - name: Check out the release
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Check Modrinth configuration
+        shell: bash
+        run: |
+          if [[ -z "$MODRINTH_TOKEN" ]]; then
+            echo "MODRINTH_TOKEN is not configured in the modrinth environment." >&2
+            exit 1
+          fi
+          if [[ -z "$MODRINTH_PROJECT_ID" ]]; then
+            echo "MODRINTH_PROJECT_ID is not configured in the modrinth environment." >&2
+            exit 1
+          fi
+
+      - name: Build and test every artifact
+        run: ./gradlew test releaseArtifacts --no-daemon
+
+      - name: Publish every artifact to Modrinth
+        run: ./gradlew publishModrinth --no-daemon --no-parallel --no-configuration-cache
