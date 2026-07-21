@@ -92,7 +92,7 @@ tasks {
 modrinth {
     token.set(providers.environmentVariable("MODRINTH_TOKEN"))
     projectId.set(providers.environmentVariable("MODRINTH_PROJECT_ID"))
-    versionNumber.set(project.version.toString())
+    versionNumber.set("${project.version}-fabric-$minecraftVersion")
     versionName.set("tkChat Fabric $minecraftVersion ${project.version}")
     versionType.set(providers.environmentVariable("MODRINTH_VERSION_TYPE").orElse("release"))
     changelog.set(providers.environmentVariable("MODRINTH_CHANGELOG").orElse(

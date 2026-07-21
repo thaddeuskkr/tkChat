@@ -18,7 +18,6 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.messaging.PluginMessageListener;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -51,9 +50,9 @@ public final class TkChatPaperPlugin extends JavaPlugin implements Listener, Plu
 
     @Override
     public void onPluginMessageReceived(
-            @NotNull String channel,
-            @NotNull Player player,
-            byte @NotNull [] data
+            String channel,
+            Player player,
+            byte[] data
     ) {
         if (!channel.equals(ITEM_CHANNEL)) {
             return;
@@ -76,7 +75,7 @@ public final class TkChatPaperPlugin extends JavaPlugin implements Listener, Plu
                     output.writeUTF(item.getType().getKey().toString());
                     output.writeInt(item.getAmount());
                     output.writeUTF(PlainTextComponentSerializer.plainText()
-                            .serialize(item.effectiveName()));
+                            .serialize(item.displayName()));
                 }
             }
             player.sendPluginMessage(this, ITEM_CHANNEL, bytes.toByteArray());

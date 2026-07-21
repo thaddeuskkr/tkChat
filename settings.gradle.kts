@@ -23,7 +23,16 @@ plugins {
 
 rootProject.name = "tkChat"
 
-include("core", "velocity", "paper-1.21", "paper-26.2")
+include("core", "velocity")
+
+val paperTargets = listOf("1.21", "26.1", "26.2")
+
+paperTargets.forEach { targetFamily ->
+    val projectName = "paper-$targetFamily"
+    include(projectName)
+    project(":$projectName").projectDir = file("paper-targets/$projectName")
+    project(":$projectName").buildFileName = "../../paper-platform/build.gradle.kts"
+}
 
 val fabricTargets = mapOf(
     "1.21" to "0.102.0+1.21",

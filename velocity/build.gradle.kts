@@ -1,3 +1,38 @@
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.TaskAction
+
+abstract class GeneratePluginBuildInfo : DefaultTask() {
+    @get:Input
+    abstract val pluginVersion: Property<String>
+
+    @get:OutputFile
+    abstract val outputFile: RegularFileProperty
+
+    @TaskAction
+    fun generate() {
+        val escapedVersion = pluginVersion.get()
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+        val sourceFile = outputFile.get().asFile
+        sourceFile.parentFile.mkdirs()
+        sourceFile.writeText(
+            """package dev.tkkr.tkchat.velocity;
+
+public final class BuildInfo {
+    public static final String VERSION = "$escapedVersion";
+
+    private BuildInfo() {
+    }
+}
+"""
+        )
+    }
+}
+
 plugins {
     java
     id("com.gradleup.shadow")
@@ -34,6 +69,21 @@ dependencies {
 java.toolchain.languageVersion.set(JavaLanguageVersion.of(25))
 
 val artifactVersion = project.version.toString()
+val generatedBuildInfoDirectory = layout.buildDirectory.dir("generated/sources/build-info/java")
+val generateBuildInfo = tasks.register<GeneratePluginBuildInfo>("generateBuildInfo") {
+    pluginVersion.set(artifactVersion)
+    outputFile.set(generatedBuildInfoDirectory.map {
+        it.file("dev/tkkr/tkchat/velocity/BuildInfo.java")
+    })
+}
+
+sourceSets.main {
+    java.srcDir(generatedBuildInfoDirectory)
+}
+
+tasks.named<JavaCompile>("compileJava") {
+    dependsOn(generateBuildInfo)
+}
 
 tasks {
     withType<JavaCompile>().configureEach {
@@ -59,7 +109,7 @@ tasks {
 modrinth {
     token.set(providers.environmentVariable("MODRINTH_TOKEN"))
     projectId.set(providers.environmentVariable("MODRINTH_PROJECT_ID"))
-    versionNumber.set(project.version.toString())
+    versionNumber.set("${project.version}-velocity")
     versionName.set("tkChat Velocity ${project.version}")
     versionType.set(providers.environmentVariable("MODRINTH_VERSION_TYPE").orElse("release"))
     changelog.set(providers.environmentVariable("MODRINTH_CHANGELOG").orElse(

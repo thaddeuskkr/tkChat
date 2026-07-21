@@ -33,7 +33,7 @@ class TkChatCommandTest {
         SimpleCommand channel = invocation -> received.set(invocation.arguments());
         TkChatCommand root = new TkChatCommand(List.of(
                 child("channel", "tkchat.command.channel", channel)),
-                "0.4.1",
+                "0.4.2",
                 ResponseTestFixtures.responses());
         CommandSource source = sourceWith("tkchat.command.channel");
 
@@ -62,7 +62,7 @@ class TkChatCommandTest {
         TkChatCommand root = new TkChatCommand(List.of(
                 child("channel", "tkchat.command.channel", channel),
                 child("reload", "tkchat.command.reload", invocation -> {
-                })), "0.4.1", ResponseTestFixtures.responses());
+                })), "0.4.2", ResponseTestFixtures.responses());
         CommandSource source = sourceWith("tkchat.command.channel");
 
         assertEquals(List.of("channel", "help"),
@@ -81,12 +81,12 @@ class TkChatCommandTest {
         ArrayList<Component> messages = new ArrayList<>();
         TkChatCommand root = new TkChatCommand(List.of(
                 child("channel", "tkchat.command.channel", invocation -> {
-                })), "0.4.1", responses());
+                })), "0.4.2", responses());
 
         root.execute(invocation(capturingSource(messages, "tkchat.command.channel"), "tkchat"));
 
         assertEquals(List.of(
-                "tkChat » Running tkChat v0.4.1",
+                "tkChat » Running tkChat v0.4.2",
                 "tkChat » Use /tkchat help to view available commands."), plain(messages));
     }
 
@@ -98,13 +98,13 @@ class TkChatCommandTest {
                 }, "/tkchat channel [channel]", "Choose your active channel.", "channel", "ch"),
                 child("reload", "tkchat.command.reload", invocation -> {
                 }, "/tkchat reload", "Reload the configuration.")),
-                "0.4.1", responses());
+                "0.4.2", responses());
         CommandSource source = capturingSource(messages, "tkchat.command.channel");
 
         root.execute(invocation(source, "tkchat", "help"));
 
         assertEquals(List.of(
-                "tkChat » Running tkChat v0.4.1",
+                "tkChat » Running tkChat v0.4.2",
                 "tkChat » /tkchat channel [channel]",
                 "tkChat » /tkchat help [command]"), plain(messages));
 

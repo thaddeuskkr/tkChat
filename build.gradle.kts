@@ -57,8 +57,8 @@ subprojects {
 
 tasks.register<Sync>("releaseArtifacts") {
     group = "build"
-    description = "Builds the deployable Velocity, Paper, and every Fabric-version artifact."
-    dependsOn(":velocity:shadowJar", ":paper-1.21:jar", ":paper-26.2:jar")
+    description = "Builds the deployable Velocity, Paper-family, and every Fabric-version artifact."
+    dependsOn(":velocity:shadowJar", ":paper-1.21:jar", ":paper-26.1:jar", ":paper-26.2:jar")
     dependsOn(gradle.includedBuilds.map { it.task(":build") })
     dependsOn(
         subprojects

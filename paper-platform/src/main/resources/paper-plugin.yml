@@ -2,7 +2,7 @@ name: tkChat
 version: '${version}'
 main: dev.tkkr.tkchat.paper.TkChatPaperPlugin
 description: Paper backend bridge for tkChat
-api-version: '1.21'
+api-version: '${apiVersion}'
 authors: [tkkr]
 dependencies:
   server:

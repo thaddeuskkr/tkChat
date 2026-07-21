@@ -8,7 +8,7 @@ available for multi-proxy fan-out, but is disabled by default for a single Veloc
 This repository targets every Java Edition release from Minecraft 1.21 through 26.2. It produces:
 
 - One Velocity 4.1 plugin (Java 25)
-- A Paper 1.21.x plugin and a Paper 26.2 plugin
+- Paper 1.21.x, 26.1.x, and 26.2.x plugins
 - One Fabric server mod for each supported Minecraft release
 
 ## Architecture
@@ -50,7 +50,7 @@ contain no moderation or routing authority.
 The Gradle wrapper provisions the required toolchains automatically:
 
 ```bash
-./gradlew :core:test :velocity:shadowJar :paper-1.21:jar :paper-26.2:jar
+./gradlew :core:test :velocity:shadowJar :paper-1.21:jar :paper-26.1:jar :paper-26.2:jar
 ```
 
 Build a particular Fabric artifact:
@@ -61,31 +61,44 @@ Build a particular Fabric artifact:
 ```
 
 Build every release artifact with `./gradlew releaseArtifacts`. Release jars are written under the
-plugin-version folder, such as `build/releases/0.4.1/`, and include the plugin version in each jar
-name, such as `tkChat-Velocity-0.4.1.jar`.
+plugin-version folder, such as `build/releases/0.4.2/`, and include the plugin version in each jar
+name, such as `tkChat-Velocity-0.4.2.jar`.
+The three Paper family jars share one implementation. The 1.21.x jar is compiled against Paper
+1.21, the 26.1.x jar against Paper 26.1.1, and the 26.2.x jar against Paper 26.2. Compiling against
+the oldest published API in each family prevents accidental use of methods that are unavailable on
+an earlier patch release. The test suite also compiles the shared bridge against every published
+Paper 1.21 API from 1.21 through 1.21.11; Paper did not publish a 1.21.2 API/server build.
 Fabric 26.x tasks require Gradle itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation
 when invoking the complete matrix.
 
 ## Modrinth publishing
 
-Publishing is automated by `.github/workflows/publish-modrinth.yml`. When a GitHub release is
-published, the workflow verifies that its tag (for example, `v0.4.1`) matches `projectVersion`,
-builds and tests the complete matrix, and then publishes every Velocity, Paper, and Fabric jar.
-Each jar receives its own Modrinth version entry with the correct loader and Minecraft versions,
-while all entries share the tkChat version number and GitHub release notes.
+Publishing is automated by `.github/workflows/publish-modrinth.yml`. When a push to `main` changes
+`projectVersion`, the workflow verifies the new version, builds and tests the complete matrix,
+creates the matching GitHub tag and release (for example, `v0.4.2`), attaches all 20 jars, and then
+publishes every Velocity, Paper, and Fabric artifact to Modrinth. No GitHub release needs to be
+created manually.
+
+The release notes are generated from the commit subjects since the previous version tag. Every
+entry includes its short commit SHA linked to the commit, followed by a link to the full diff. The
+first release includes the complete commit history because no earlier tag exists. The exact same
+Markdown is used for the GitHub release and every Modrinth version entry. Modrinth entries use
+platform-specific identifiers so each jar retains the correct loader, Minecraft version, and
+dependency metadata.
 
 Configure these values in the repository's `modrinth` GitHub environment before the first run:
 
 - Secret `MODRINTH_TOKEN`: a Modrinth personal access token with `CREATE_VERSION` permission.
 - Variable `MODRINTH_PROJECT_ID`: the Modrinth project ID or slug.
 
-The workflow can also be run manually, with a release channel and optional changelog. For a local
-publication, set `MODRINTH_TOKEN` and `MODRINTH_PROJECT_ID`, then run
+For a local publication, set `MODRINTH_TOKEN` and `MODRINTH_PROJECT_ID`, then run
 `./gradlew publishModrinth --no-parallel --no-configuration-cache`.
 
 `projectVersion` in `gradle.properties` is the release version source of truth. Bump it for runtime,
 configuration, compatibility, or artifact changes; documentation and release-workflow-only changes
-do not require a new plugin version.
+do not require a new plugin version. Gradle writes that value into Velocity's generated plugin
+metadata, and `/tkchat` reads it from the metadata at runtime; no Java version constant needs to be
+updated manually.
 
 ## Live integration verification
 
@@ -110,7 +123,7 @@ constraints.
 ## Installation
 
 1. Put `tkChat-Velocity-<version>.jar` on Velocity.
-2. Put the matching Paper or exact-version Fabric artifact on every backend.
+2. Put the matching Paper-family or exact-version Fabric artifact on every backend.
 3. Keep SignedVelocity installed on the proxy and all backends.
 4. Start Velocity once to generate `plugins/tkchat/config.yml`.
 5. Configure MariaDB in `mariadb`, preferably by supplying credentials through

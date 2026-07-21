@@ -6,6 +6,7 @@ import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import com.velocitypowered.api.plugin.Dependency;
 import com.velocitypowered.api.plugin.Plugin;
+import com.velocitypowered.api.plugin.PluginDescription;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.ProxyServer;
 import dev.tkkr.tkchat.core.service.ChannelRegistry;
@@ -48,7 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Plugin(
         id = "tkchat",
         name = "tkChat",
-        version = TkChatPlugin.VERSION,
+        version = BuildInfo.VERSION,
         description = "Velocity-led, cross-server channel chat",
         authors = {"tkkr"},
         dependencies = {
@@ -58,8 +59,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
         }
 )
 public final class TkChatPlugin {
-    public static final String VERSION = "0.4.1";
-
     private record InfrastructureSnapshot(
             String instanceId,
             boolean mariadbEnabled,
@@ -152,6 +151,7 @@ public final class TkChatPlugin {
     private final Logger logger;
     private final Path dataDirectory;
     private final ExecutorService executor;
+    private final String version;
 
     private SocialRepository repository;
     private MessageTransport transport;
@@ -175,12 +175,15 @@ public final class TkChatPlugin {
             ProxyServer proxy,
             Logger logger,
             @DataDirectory Path dataDirectory,
-            ExecutorService executor
+            ExecutorService executor,
+            PluginDescription pluginDescription
     ) {
         this.proxy = proxy;
         this.logger = logger;
         this.dataDirectory = dataDirectory;
         this.executor = executor;
+        this.version = pluginDescription.getVersion().orElseThrow(() ->
+                new IllegalStateException("tkChat plugin metadata does not contain a version"));
     }
 
     @Subscribe
@@ -215,7 +218,7 @@ public final class TkChatPlugin {
                     java.time.Duration.ofMillis(config.chat.maxMessageAgeMillis));
             networkMessages = new NetworkMessageService(transport, itemLinks, formatting);
 
-            commandRegistrar = new CommandRegistrar(this, proxy);
+            commandRegistrar = new CommandRegistrar(this, proxy, version);
             commandRegistrar.register(
                     proxy, channels, states, repository, chat, access, networkMessages, spies,
                     responses, config, this::reloadConfig);

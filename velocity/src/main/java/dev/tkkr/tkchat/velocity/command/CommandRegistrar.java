@@ -7,7 +7,6 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import dev.tkkr.tkchat.core.service.ChannelRegistry;
 import dev.tkkr.tkchat.core.service.SocialRepository;
 import dev.tkkr.tkchat.velocity.Permissions;
-import dev.tkkr.tkchat.velocity.TkChatPlugin;
 import dev.tkkr.tkchat.velocity.config.AppConfig;
 import dev.tkkr.tkchat.velocity.config.ConfigReloadResult;
 import dev.tkkr.tkchat.velocity.config.ResponseKey;
@@ -22,6 +21,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Supplier;
 
@@ -39,11 +39,13 @@ public final class CommandRegistrar {
 
     private final Object plugin;
     private final CommandManager commands;
+    private final String version;
     private List<RegisteredCommand> registered = List.of();
 
-    public CommandRegistrar(Object plugin, ProxyServer proxy) {
+    public CommandRegistrar(Object plugin, ProxyServer proxy, String version) {
         this.plugin = plugin;
         this.commands = proxy.getCommandManager();
+        this.version = Objects.requireNonNull(version, "version");
     }
 
     public synchronized void register(
@@ -204,7 +206,7 @@ public final class CommandRegistrar {
                         "Reload tkChat's runtime configuration.",
                         List.of())));
         specs.add(new CommandSpec("tkchat", "", new TkChatCommand(
-                List.copyOf(rootChildren.values()), TkChatPlugin.VERSION, responses), List.of()));
+                List.copyOf(rootChildren.values()), version, responses), List.of()));
         return List.copyOf(specs);
     }
 

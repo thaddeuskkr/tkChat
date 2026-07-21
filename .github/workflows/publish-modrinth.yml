@@ -1,59 +1,86 @@
-name: Publish to Modrinth
+name: Release tkChat
 
 on:
-  release:
-    types: [published]
-  workflow_dispatch:
-    inputs:
-      version_type:
-        description: Modrinth release channel
-        required: true
-        default: release
-        type: choice
-        options:
-          - release
-          - beta
-          - alpha
-      changelog:
-        description: Changelog used for a manual publication
-        required: false
-        type: string
+  push:
+    branches: [main]
+    paths:
+      - gradle.properties
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: modrinth-${{ github.event.release.tag_name || github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  publish:
-    name: Build, test, and publish
+  release:
+    name: Build, release, and publish
     runs-on: ubuntu-latest
     environment: modrinth
     env:
       MODRINTH_TOKEN: ${{ secrets.MODRINTH_TOKEN }}
       MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID }}
-      MODRINTH_VERSION_TYPE: ${{ github.event.release.prerelease && 'beta' || inputs.version_type || 'release' }}
-      MODRINTH_CHANGELOG: ${{ github.event.release.body || inputs.changelog || 'See the corresponding GitHub release for changes.' }}
-      RELEASE_TAG: ${{ github.event.release.tag_name || '' }}
+      MODRINTH_VERSION_TYPE: release
 
     steps:
-      - name: Check out the release
+      - name: Check out the complete repository history
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.release.tag_name || github.ref }}
+          fetch-depth: 0
+
+      - name: Detect a project version change
+        id: version
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+
+          current_version="$(sed -n 's/^projectVersion=//p' gradle.properties | head -n 1 | tr -d '\r')"
+          previous_version="$(git show "$BEFORE_SHA:gradle.properties" 2>/dev/null \
+            | sed -n 's/^projectVersion=//p' | head -n 1 | tr -d '\r' || true)"
+
+          if [[ -z "$current_version" ]]; then
+            echo "projectVersion is missing from gradle.properties." >&2
+            exit 1
+          fi
+
+          if [[ "$current_version" == "$previous_version" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "projectVersion remains $current_version; no release is required."
+            exit 0
+          fi
+
+          if [[ ! "$current_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "projectVersion '$current_version' is not a supported release version." >&2
+            exit 1
+          fi
+
+          release_tag="v$current_version"
+          if git show-ref --tags --verify --quiet "refs/tags/$release_tag"; then
+            echo "Release tag $release_tag already exists." >&2
+            exit 1
+          fi
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "version=$current_version" >> "$GITHUB_OUTPUT"
+          echo "tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "projectVersion changed from ${previous_version:-<unset>} to $current_version."
 
       - name: Set up Java 25
+        if: steps.version.outputs.changed == 'true'
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
 
       - name: Set up Gradle
+        if: steps.version.outputs.changed == 'true'
         uses: gradle/actions/setup-gradle@v6
 
       - name: Check Modrinth configuration
+        if: steps.version.outputs.changed == 'true'
         shell: bash
         run: |
           if [[ -z "$MODRINTH_TOKEN" ]]; then
@@ -66,7 +93,85 @@ jobs:
           fi
 
       - name: Build and test every artifact
-        run: ./gradlew test releaseArtifacts --no-daemon
+        if: steps.version.outputs.changed == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: ./gradlew verifyReleaseVersion test releaseArtifacts --no-daemon
+
+      - name: Generate the release changelog
+        if: steps.version.outputs.changed == 'true'
+        id: changelog
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          repository_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+          previous_tag="$(git tag --merged HEAD --sort=-version:refname \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true)"
+          changelog_file="$RUNNER_TEMP/tkchat-changelog.md"
+
+          if [[ -n "$previous_tag" ]]; then
+            revision_range="$previous_tag..HEAD"
+          else
+            revision_range="HEAD"
+          fi
+
+          while IFS=$'\t' read -r commit_sha short_sha subject; do
+            [[ -n "$commit_sha" ]] || continue
+            printf -- '- %s ([%s](%s/commit/%s))\n' \
+              "$subject" "$short_sha" "$repository_url" "$commit_sha"
+          done < <(git log "$revision_range" --no-merges --pretty=tformat:'%H%x09%h%x09%s') \
+            > "$changelog_file"
+
+          if [[ ! -s "$changelog_file" ]]; then
+            echo "No commits were found for $revision_range." >&2
+            exit 1
+          fi
+
+          if [[ -n "$previous_tag" ]]; then
+            printf '\n[View full diff](%s/compare/%s...%s)\n' \
+              "$repository_url" "$previous_tag" "$RELEASE_TAG" >> "$changelog_file"
+          else
+            printf '\n[View full commit history](%s/commits/%s)\n' \
+              "$repository_url" "$RELEASE_TAG" >> "$changelog_file"
+          fi
+
+          delimiter="TKCHAT_CHANGELOG_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          {
+            echo "MODRINTH_CHANGELOG<<$delimiter"
+            cat "$changelog_file"
+            echo "$delimiter"
+          } >> "$GITHUB_ENV"
+          echo "file=$changelog_file" >> "$GITHUB_OUTPUT"
 
       - name: Publish every artifact to Modrinth
+        if: steps.version.outputs.changed == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: ./gradlew publishModrinth --no-daemon --no-parallel --no-configuration-cache
+
+      - name: Create the GitHub release
+        if: steps.version.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          CHANGELOG_FILE: ${{ steps.changelog.outputs.file }}
+        run: |
+          set -euo pipefail
+
+          release_directory="build/releases/$RELEASE_VERSION"
+          mapfile -t artifacts < <(find "$release_directory" -maxdepth 1 -type f -name '*.jar' | sort)
+          if [[ "${#artifacts[@]}" -ne 20 ]]; then
+            echo "Expected 20 release jars, found ${#artifacts[@]}." >&2
+            exit 1
+          fi
+
+          gh release create "$RELEASE_TAG" "${artifacts[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "tkChat $RELEASE_TAG" \
+            --notes-file "$CHANGELOG_FILE"
