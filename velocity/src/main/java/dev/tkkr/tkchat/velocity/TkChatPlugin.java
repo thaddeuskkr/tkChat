@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Plugin(
         id = "tkchat",
         name = "tkChat",
-        version = "0.3.2",
+        version = "0.3.3",
         description = "Velocity-led, cross-server channel chat",
         authors = {"tkkr"},
         dependencies = {

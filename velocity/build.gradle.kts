@@ -32,6 +32,8 @@ dependencies {
 
 java.toolchain.languageVersion.set(JavaLanguageVersion.of(25))
 
+val artifactVersion = project.version.toString()
+
 tasks {
     withType<JavaCompile>().configureEach {
         options.release.set(25)
@@ -42,7 +44,7 @@ tasks {
     }
     shadowJar {
         archiveClassifier.set("")
-        archiveFileName.set("tkChat-Velocity.jar")
+        archiveFileName.set("tkChat-Velocity-$artifactVersion.jar")
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
         relocate("com.zaxxer.hikari", "dev.tkkr.tkchat.libs.hikari")
         relocate("org.mariadb.jdbc", "dev.tkkr.tkchat.libs.mariadb")

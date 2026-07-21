@@ -44,7 +44,7 @@ tasks.register<Sync>("releaseArtifacts") {
             }
     )
     from(subprojects.map { it.layout.buildDirectory.dir("libs") })
-    include("tkChat-*.jar")
+    include("tkChat-*-${project.version}.jar")
     exclude("*-dev.jar", "*-sources.jar")
     into(layout.buildDirectory.dir("releases/${project.version}"))
 }
