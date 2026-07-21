@@ -8,8 +8,8 @@ available for multi-proxy fan-out, but is disabled by default for a single Veloc
 This repository targets every Java Edition release from Minecraft 1.21 through 26.2. It produces:
 
 - One Velocity 4.1 plugin (Java 25)
-- Paper 1.21.x, 26.1.x, and 26.2.x plugins
-- One Fabric 1.21.x family mod and exact-version Fabric 26.x mods
+- Paper 1.21.x, 26.1.x, and 26.2 plugins
+- Fabric 1.21.x and 26.1.x family mods, plus an exact-version Fabric 26.2 mod
 
 ## Architecture
 
@@ -58,20 +58,25 @@ Build a particular Fabric artifact:
 
 ```bash
 ./gradlew :fabric-1-21:remapJar
+./gradlew :fabric-26-1:jar
 ./gradlew :fabric-26-2:jar
 ```
 
 Build every release artifact with `./gradlew releaseArtifacts`. Release jars are written under the
-plugin-version folder, such as `build/releases/0.6.0/`, and include the plugin version in each jar
-name, such as `tkChat-Velocity-0.6.0.jar`.
+plugin-version folder, such as `build/releases/0.6.1/`, and include the plugin version in each jar
+name, such as `tkChat-Velocity-0.6.1.jar`.
 The three Paper family jars share one implementation. The 1.21.x jar is compiled against Paper
-1.21, the 26.1.x jar against Paper 26.1.1, and the 26.2.x jar against Paper 26.2. Compiling against
+1.21, the 26.1.x jar against Paper 26.1.1, and the 26.2 jar against Paper 26.2. Compiling against
 the oldest published API in each family prevents accidental use of methods that are unavailable on
 an earlier patch release. The test suite also compiles the shared bridge against every published
 Paper 1.21 API from 1.21 through 1.21.11; Paper did not publish a 1.21.2 API/server build.
 Fabric 1.21 through 1.21.11 share one remapped jar. All twelve former per-version builds produced
 the same runtime class and method references; their only meaningful jar difference was the exact
 Minecraft version in `fabric.mod.json`. The family jar lists all twelve supported versions there.
+Fabric 26.1 through 26.1.2 likewise share one jar compiled against 26.1 and the lowest supported
+Fabric API. The three former exact-version jars contained identical runtime classes, so the family
+jar bounds its metadata to the three versions that were verified rather than claiming future 26.1
+patches automatically.
 Fabric 26.x tasks require Gradle itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation
 when invoking the complete matrix.
 
@@ -79,7 +84,7 @@ when invoking the complete matrix.
 
 Publishing is automated by `.github/workflows/publish-modrinth.yml`. When a push to `main` changes
 `projectVersion`, the workflow verifies the new version, builds and tests the complete matrix,
-creates the matching GitHub tag and release (for example, `v0.6.0`), attaches all 9 jars, and then
+creates the matching GitHub tag and release (for example, `v0.6.1`), attaches all 7 jars, and then
 publishes every Velocity, Paper, and Fabric artifact to Modrinth. No GitHub release needs to be
 created manually.
 
@@ -127,7 +132,7 @@ constraints.
 ## Installation
 
 1. Put `tkChat-Velocity-<version>.jar` on Velocity.
-2. Put the matching Paper-family, Fabric 1.21.x family, or exact-version Fabric 26.x artifact on
+2. Put the matching Paper-family, Fabric family, or exact-version Fabric 26.2 artifact on
    every backend.
 3. Keep SignedVelocity installed on the proxy and all backends.
 4. Start Velocity once to generate `plugins/tkchat/config.yml`.

@@ -4,7 +4,7 @@ plugins {
 }
 
 data class PaperTarget(
-    val family: String,
+    val versionLabel: String,
     val apiDependency: String,
     val minimumApiVersion: String,
     val javaVersion: Int,
@@ -13,7 +13,7 @@ data class PaperTarget(
 
 val target = when (project.name) {
     "paper-1.21" -> PaperTarget(
-        family = "1.21.x",
+        versionLabel = "1.21.x",
         apiDependency = "1.21-R0.1-SNAPSHOT",
         minimumApiVersion = "1.21",
         javaVersion = 21,
@@ -23,14 +23,14 @@ val target = when (project.name) {
         )
     )
     "paper-26.1" -> PaperTarget(
-        family = "26.1.x",
+        versionLabel = "26.1.x",
         apiDependency = "26.1.1.build.29-alpha",
         minimumApiVersion = "26.1.1",
         javaVersion = 25,
         gameVersions = listOf("26.1.1", "26.1.2")
     )
     "paper-26.2" -> PaperTarget(
-        family = "26.2.x",
+        versionLabel = "26.2",
         apiDependency = "26.2.build.62-beta",
         minimumApiVersion = "26.2",
         javaVersion = 25,
@@ -109,7 +109,7 @@ tasks {
         )
     }
     jar {
-        archiveFileName.set("tkChat-Paper-${target.family}-$artifactVersion.jar")
+        archiveFileName.set("tkChat-Paper-${target.versionLabel}-$artifactVersion.jar")
     }
     test {
         dependsOn(paper121CompatibilityTasks)
@@ -122,8 +122,8 @@ tasks {
 modrinth {
     token.set(providers.environmentVariable("MODRINTH_TOKEN"))
     projectId.set(providers.environmentVariable("MODRINTH_PROJECT_ID"))
-    versionNumber.set("${project.version}-paper-${target.family}")
-    versionName.set("tkChat Paper ${target.family} ${project.version}")
+    versionNumber.set("${project.version}-paper-${target.versionLabel}")
+    versionName.set("tkChat Paper ${target.versionLabel} ${project.version}")
     versionType.set(providers.environmentVariable("MODRINTH_VERSION_TYPE").orElse("release"))
     changelog.set(providers.environmentVariable("MODRINTH_CHANGELOG").orElse(
             "See https://github.com/thaddeuskkr/tkChat/releases/tag/v${project.version}"))

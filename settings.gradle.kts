@@ -34,15 +34,9 @@ paperTargets.forEach { targetFamily ->
     project(":$projectName").buildFileName = "../../paper-platform/build.gradle.kts"
 }
 
-val fabricTargets = mapOf(
-    "1.21" to "0.102.0+1.21",
-    "26.1" to "0.145.1+26.1",
-    "26.1.1" to "0.145.4+26.1.1",
-    "26.1.2" to "0.155.2+26.1.2",
-    "26.2" to "0.155.2+26.2"
-)
+val fabricTargets = listOf("1.21", "26.1", "26.2")
 
-fabricTargets.forEach { (minecraftVersion, fabricApiVersion) ->
+fabricTargets.forEach { minecraftVersion ->
     val projectName = "fabric-${minecraftVersion.replace('.', '-')}"
     include(projectName)
     project(":$projectName").projectDir = file("fabric-targets/$projectName")
