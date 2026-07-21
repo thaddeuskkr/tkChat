@@ -9,7 +9,7 @@ This repository targets every Java Edition release from Minecraft 1.21 through 2
 
 - One Velocity 4.1 plugin (Java 25)
 - Paper 1.21.x, 26.1.x, and 26.2.x plugins
-- One Fabric server mod for each supported Minecraft release
+- One Fabric 1.21.x family mod and exact-version Fabric 26.x mods
 
 ## Architecture
 
@@ -39,8 +39,9 @@ evaluates permissions and mutes, and inserts player input only as literal text.
 - RabbitMQ (optional; only needed when multiple Velocity processes must fan out chat)
 - Java 21 for Minecraft 1.21.x and Java 25 for Minecraft 26.x
 
-The Minecraft 1.21.1 Fabric artifact has a tested compatibility floor of Fabric Loader 0.18.4 and
-Fabric API 0.116.13+1.21.1. Newer API and loader versions for Minecraft 1.21.1 remain valid.
+The Minecraft 1.21.x Fabric artifact has a tested compatibility floor of Fabric Loader 0.18.4. On
+Minecraft 1.21.1, its tested Fabric API floor is 0.116.13+1.21.1. Newer compatible API and loader
+versions remain valid.
 
 LuckPerms and LibertyBans are not required on backend servers. The backend artifacts intentionally
 contain no moderation or routing authority.
@@ -56,18 +57,21 @@ The Gradle wrapper provisions the required toolchains automatically:
 Build a particular Fabric artifact:
 
 ```bash
-./gradlew :fabric-1-21-11:remapJar
+./gradlew :fabric-1-21:remapJar
 ./gradlew :fabric-26-2:jar
 ```
 
 Build every release artifact with `./gradlew releaseArtifacts`. Release jars are written under the
-plugin-version folder, such as `build/releases/0.4.2/`, and include the plugin version in each jar
-name, such as `tkChat-Velocity-0.4.2.jar`.
+plugin-version folder, such as `build/releases/0.5.0/`, and include the plugin version in each jar
+name, such as `tkChat-Velocity-0.5.0.jar`.
 The three Paper family jars share one implementation. The 1.21.x jar is compiled against Paper
 1.21, the 26.1.x jar against Paper 26.1.1, and the 26.2.x jar against Paper 26.2. Compiling against
 the oldest published API in each family prevents accidental use of methods that are unavailable on
 an earlier patch release. The test suite also compiles the shared bridge against every published
 Paper 1.21 API from 1.21 through 1.21.11; Paper did not publish a 1.21.2 API/server build.
+Fabric 1.21 through 1.21.11 share one remapped jar. All twelve former per-version builds produced
+the same runtime class and method references; their only meaningful jar difference was the exact
+Minecraft version in `fabric.mod.json`. The family jar lists all twelve supported versions there.
 Fabric 26.x tasks require Gradle itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation
 when invoking the complete matrix.
 
@@ -75,7 +79,7 @@ when invoking the complete matrix.
 
 Publishing is automated by `.github/workflows/publish-modrinth.yml`. When a push to `main` changes
 `projectVersion`, the workflow verifies the new version, builds and tests the complete matrix,
-creates the matching GitHub tag and release (for example, `v0.4.2`), attaches all 20 jars, and then
+creates the matching GitHub tag and release (for example, `v0.5.0`), attaches all 9 jars, and then
 publishes every Velocity, Paper, and Fabric artifact to Modrinth. No GitHub release needs to be
 created manually.
 
@@ -123,7 +127,8 @@ constraints.
 ## Installation
 
 1. Put `tkChat-Velocity-<version>.jar` on Velocity.
-2. Put the matching Paper-family or exact-version Fabric artifact on every backend.
+2. Put the matching Paper-family, Fabric 1.21.x family, or exact-version Fabric 26.x artifact on
+   every backend.
 3. Keep SignedVelocity installed on the proxy and all backends.
 4. Start Velocity once to generate `plugins/tkchat/config.yml`.
 5. Configure MariaDB in `mariadb`, preferably by supplying credentials through
@@ -283,7 +288,7 @@ invitation consumption, and affected active-channel repairs are transactional.
 - Case-insensitive `@Username` mentions can highlight the recipient's name and play a configurable
   sound. Mention styling and sound settings live under `mentions`.
 - `<item>` and `[item]` link the sender's main-hand item. The Velocity plugin asks the Paper or
-  exact-version Fabric bridge for its identifier, amount, and display name, then renders a hoverable
+  Fabric bridge for its identifier, amount, and display name, then renders a hoverable
   item component. Placeholders, visible format, and timeout are configurable under `item-links`.
 - Social spy is a per-session toggle that shows eligible staff channel, group, and direct messages
   they would not normally receive.

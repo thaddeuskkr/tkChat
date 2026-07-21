@@ -8,17 +8,6 @@ plugins {
 
 val targets = mapOf(
     "fabric-1-21" to ("1.21" to "0.102.0+1.21"),
-    "fabric-1-21-1" to ("1.21.1" to "0.116.13+1.21.1"),
-    "fabric-1-21-2" to ("1.21.2" to "0.106.1+1.21.2"),
-    "fabric-1-21-3" to ("1.21.3" to "0.114.1+1.21.3"),
-    "fabric-1-21-4" to ("1.21.4" to "0.119.4+1.21.4"),
-    "fabric-1-21-5" to ("1.21.5" to "0.128.2+1.21.5"),
-    "fabric-1-21-6" to ("1.21.6" to "0.128.2+1.21.6"),
-    "fabric-1-21-7" to ("1.21.7" to "0.129.0+1.21.7"),
-    "fabric-1-21-8" to ("1.21.8" to "0.136.1+1.21.8"),
-    "fabric-1-21-9" to ("1.21.9" to "0.134.1+1.21.9"),
-    "fabric-1-21-10" to ("1.21.10" to "0.138.4+1.21.10"),
-    "fabric-1-21-11" to ("1.21.11" to "0.141.5+1.21.11"),
     "fabric-26-1" to ("26.1" to "0.145.1+26.1"),
     "fabric-26-1-1" to ("26.1.1" to "0.145.4+26.1.1"),
     "fabric-26-1-2" to ("26.1.2" to "0.155.2+26.1.2"),
@@ -27,21 +16,34 @@ val targets = mapOf(
 val (minecraftVersion, fabricApiVersion) = requireNotNull(targets[project.name]) {
     "No Fabric target is configured for ${project.name}"
 }
+val supportedMinecraftVersions = if (minecraftVersion == "1.21") {
+    listOf(
+        "1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4", "1.21.5",
+        "1.21.6", "1.21.7", "1.21.8", "1.21.9", "1.21.10", "1.21.11"
+    )
+} else {
+    listOf(minecraftVersion)
+}
+val artifactMinecraftVersion = if (minecraftVersion == "1.21") "1.21.x" else minecraftVersion
+val minecraftDependency = if (minecraftVersion == "1.21") {
+    ">=1.21 <=1.21.11"
+} else {
+    "=$minecraftVersion"
+}
 val javaVersion = if (minecraftVersion.startsWith("26.")) 25 else 21
 val modernMinecraft = minecraftVersion.startsWith("26.")
-val fabricLoaderVersion = if (minecraftVersion == "1.21.1") "0.18.4" else "0.19.3"
+val fabricLoaderVersion = if (minecraftVersion == "1.21") "0.18.4" else "0.19.3"
 val artifactVersion = project.version.toString()
 
 pluginManager.apply(if (modernMinecraft) "net.fabricmc.fabric-loom" else "fabric-loom")
 
-base.archivesName.set("tkChat-Fabric-$minecraftVersion")
+base.archivesName.set("tkChat-Fabric-$artifactMinecraftVersion")
 
 sourceSets {
     main {
         val bridgeSources = when {
             modernMinecraft -> "fabric-platform/src/modern/java"
-            minecraftVersion == "1.21.11" -> "fabric-platform/src/mc_1_21_11/java"
-            else -> "fabric-platform/src/mc_1_21_0_to_1_21_10/java"
+            else -> "fabric-platform/src/mc_1_21/java"
         }
         java.setSrcDirs(listOf(
             rootProject.file("fabric-platform/src/main/java"),
@@ -71,6 +73,7 @@ tasks {
         val resourceProperties = mapOf(
             "version" to artifactVersion,
             "minecraftVersion" to minecraftVersion,
+            "minecraftDependency" to minecraftDependency,
             "javaVersion" to javaVersion,
             "fabricApiVersion" to fabricApiVersion,
             "fabricLoaderVersion" to fabricLoaderVersion
@@ -80,11 +83,11 @@ tasks {
     }
     if (modernMinecraft) {
         jar {
-            archiveFileName.set("tkChat-Fabric-$minecraftVersion-$artifactVersion.jar")
+            archiveFileName.set("tkChat-Fabric-$artifactMinecraftVersion-$artifactVersion.jar")
         }
     } else {
         named<RemapJarTask>("remapJar") {
-            archiveFileName.set("tkChat-Fabric-$minecraftVersion-$artifactVersion.jar")
+            archiveFileName.set("tkChat-Fabric-$artifactMinecraftVersion-$artifactVersion.jar")
         }
     }
 }
@@ -92,8 +95,8 @@ tasks {
 modrinth {
     token.set(providers.environmentVariable("MODRINTH_TOKEN"))
     projectId.set(providers.environmentVariable("MODRINTH_PROJECT_ID"))
-    versionNumber.set("${project.version}-fabric-$minecraftVersion")
-    versionName.set("tkChat Fabric $minecraftVersion ${project.version}")
+    versionNumber.set("${project.version}-fabric-$artifactMinecraftVersion")
+    versionName.set("tkChat Fabric $artifactMinecraftVersion ${project.version}")
     versionType.set(providers.environmentVariable("MODRINTH_VERSION_TYPE").orElse("release"))
     changelog.set(providers.environmentVariable("MODRINTH_CHANGELOG").orElse(
             "See https://github.com/thaddeuskkr/tkChat/releases/tag/v${project.version}"))
@@ -102,7 +105,7 @@ modrinth {
     } else {
         tasks.named<RemapJarTask>("remapJar")
     })
-    gameVersions.add(minecraftVersion)
+    gameVersions.addAll(supportedMinecraftVersions)
     detectLoaders.set(false)
     loaders.add("fabric")
     dependencies {

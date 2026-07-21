@@ -16,7 +16,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.UUID;
 
-// Fabric 1.21 through 1.21.10 use ResourceLocation for custom payload identifiers.
+// Loom remaps this bridge to identical runtime bytecode on Minecraft 1.21 through 1.21.11.
 final class FabricItemLinkBridge {
     private FabricItemLinkBridge() {
     }

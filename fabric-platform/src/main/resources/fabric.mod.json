@@ -16,7 +16,7 @@
     "fabricloader": ">=${fabricLoaderVersion}",
     "fabric-api": ">=${fabricApiVersion}",
     "java": ">=${javaVersion}",
-    "minecraft": "=${minecraftVersion}",
+    "minecraft": "${minecraftDependency}",
     "signedvelocity": "*"
   }
 }
