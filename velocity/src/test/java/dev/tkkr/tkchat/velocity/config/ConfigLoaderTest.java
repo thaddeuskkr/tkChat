@@ -47,7 +47,7 @@ class ConfigLoaderTest {
         assertTrue(messages.contains("no-permission:"));
         assertTrue(messages.contains("Usage: /me <action>"));
         assertTrue(messages.contains("invite-received:"));
-        assertEquals("<red>Unknown tkChat command.</red>",
+        assertEquals("<red>Invalid command</red>",
                 config.messages.template(ResponseKey.ROOT_UNKNOWN));
     }
 

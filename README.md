@@ -61,8 +61,8 @@ Build a particular Fabric artifact:
 ```
 
 Build every release artifact with `./gradlew releaseArtifacts`. Release jars are written under the
-plugin-version folder, such as `build/releases/0.4.0/`, and include the plugin version in each jar
-name, such as `tkChat-Velocity-0.4.0.jar`.
+plugin-version folder, such as `build/releases/0.4.1/`, and include the plugin version in each jar
+name, such as `tkChat-Velocity-0.4.1.jar`.
 Fabric 26.x tasks require Gradle itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation
 when invoking the complete matrix.
 

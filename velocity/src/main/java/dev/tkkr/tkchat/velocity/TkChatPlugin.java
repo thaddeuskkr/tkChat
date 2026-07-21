@@ -58,7 +58,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
         }
 )
 public final class TkChatPlugin {
-    public static final String VERSION = "0.4.0";
+    public static final String VERSION = "0.4.1";
 
     private record InfrastructureSnapshot(
             String instanceId,

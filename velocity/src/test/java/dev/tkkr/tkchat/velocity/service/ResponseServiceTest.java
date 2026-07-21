@@ -33,7 +33,7 @@ class ResponseServiceTest {
         AppConfig config = new ConfigLoader().load(directory);
         ResponseService responses = new ResponseService("", config.messages);
 
-        assertEquals("Unknown tkChat command.", plain(
+        assertEquals("Invalid command", plain(
                 responses.message(ResponseKey.ROOT_UNKNOWN)));
     }
 
@@ -53,7 +53,7 @@ class ResponseServiceTest {
         AppConfig initial = new ConfigLoader().load(directory);
         Path messagesPath = directory.resolve("messages.yml");
         Files.writeString(messagesPath, Files.readString(messagesPath).replace(
-                "<red>Unknown tkChat command.</red>",
+                "<red>Invalid command</red>",
                 "<gold>Choose another command.</gold>"));
         Path configPath = directory.resolve("config.yml");
         Files.writeString(configPath, Files.readString(configPath).replace(

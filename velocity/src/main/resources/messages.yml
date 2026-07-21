@@ -10,7 +10,7 @@ me:
   usage: '<red>Usage: /me <action> (maximum <max_length> characters)</red>'
 
 root:
-  unknown: '<red>Unknown tkChat command.</red>'
+  unknown: '<red>Invalid command</red>'
   no-available: '<red>You do not have permission to use any tkChat commands.</red>'
   available: '<gray>tkChat commands: <white><commands></white></gray>'
   status: '<gray>Running <color:#cba6f7>tkChat v<version></color></gray>'
