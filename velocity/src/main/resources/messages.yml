@@ -1,6 +1,7 @@
 # Command responses use MiniMessage. Dynamic placeholders such as <player>, <group>,
-# <channel>, <commands>, <visibility>, <button>, <max_length>, and <sections> are
-# available only in the responses where they appear below.
+# <channel>, <commands>, <command>, <description>, <usage>, <aliases>,
+# <permission>, <version>, <visibility>, <button>, <max_length>, and <sections>
+# are available only in the responses where they appear below.
 general:
   no-permission: '<red>You do not have permission to use this command.</red>'
 
@@ -12,6 +13,17 @@ root:
   unknown: '<red>Unknown tkChat command.</red>'
   no-available: '<red>You do not have permission to use any tkChat commands.</red>'
   available: '<gray>tkChat commands: <white><commands></white></gray>'
+  status: '<gray>Running <color:#cba6f7>tkChat v<version></color></gray>'
+  status-help: '<gray>Use <green>/tkchat help</green> to view available commands.</gray>'
+  help-heading: '<gray>Available tkChat commands:</gray>'
+  help-entry: '<green><usage></green>'
+  help-usage: '<red>Usage: /tkchat help [command]</red>'
+  help-unknown: '<red>Unknown command, or you do not have permission to use it.</red>'
+  help-detail-heading: '<color:#cba6f7><bold>/tkchat <command></bold></color>'
+  help-detail-description: '<gray><description></gray>'
+  help-detail-usage: '<gray>Usage: <green><usage></green></gray>'
+  help-detail-aliases: '<gray>Standalone commands: <white><aliases></white></gray>'
+  help-detail-permission: '<gray>Permission: <white><permission></white></gray>'
 
 channel:
   player-only: '<red>Only players can select a chat channel.</red>'

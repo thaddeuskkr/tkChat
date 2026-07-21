@@ -48,7 +48,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Plugin(
         id = "tkchat",
         name = "tkChat",
-        version = "0.3.3",
+        version = TkChatPlugin.VERSION,
         description = "Velocity-led, cross-server channel chat",
         authors = {"tkkr"},
         dependencies = {
@@ -58,6 +58,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
         }
 )
 public final class TkChatPlugin {
+    public static final String VERSION = "0.4.0";
+
     private record InfrastructureSnapshot(
             String instanceId,
             boolean mariadbEnabled,

@@ -61,8 +61,8 @@ Build a particular Fabric artifact:
 ```
 
 Build every release artifact with `./gradlew releaseArtifacts`. Release jars are written under the
-plugin-version folder, such as `build/releases/0.3.3/`, and include the plugin version in each jar
-name, such as `tkChat-Velocity-0.3.3.jar`.
+plugin-version folder, such as `build/releases/0.4.0/`, and include the plugin version in each jar
+name, such as `tkChat-Velocity-0.4.0.jar`.
 Fabric 26.x tasks require Gradle itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation
 when invoking the complete matrix.
 
@@ -183,6 +183,10 @@ gamemode, region, and other backend-only contexts are not inferred by the proxy 
 
 ## Commands
 
+- `/tkchat` shows the running tkChat version and points to the help command.
+- `/tkchat help` lists the usage of only the root commands the sender has permission to use;
+  `/tkchat help <command>` shows that command's description, usage, standalone commands, and
+  permission node.
 - `/tkchat <command>` provides every full command under a stable plugin-owned root. It does not
   expose short command aliases as subcommands, but `/tkchat channel <channel>` accepts configured
   channel aliases such as `g` and `l`.
@@ -254,8 +258,9 @@ invitation consumption, and affected active-channel repairs are transactional.
   `formats.global-leave` are network-wide. All four accept MiniMessage plus `<name>` and `<server>`,
   and an empty format disables that announcement. When local and global formats are both enabled,
   the local format replaces the global one on the player's backend so nobody sees a duplicate. The
-  Paper and Fabric bridges suppress the corresponding vanilla messages, including misleading
-  join/leave lines during server switches.
+  joining player does not receive their own join message. Local leave/join messages also fire for
+  the old/new backend during a server switch, while global messages only fire when entering or
+  leaving the proxy. The Paper and Fabric bridges suppress the corresponding vanilla messages.
 - Channel, group, action, direct-message, broadcast, clear, social-spy, join/leave, mention, and
   item-link presentation remain customizable with MiniMessage formats in the Velocity config.
   Backend configuration stays limited to backend-local concerns.

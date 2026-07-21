@@ -76,7 +76,8 @@ formats:
   social-spy: '<dark_gray>[Spy: <target>]</dark_gray> <name><dark_gray>: </dark_gray><message>'
   # Join/leave announcements. Available placeholders are <name> and <server>.
   # Global messages reach the rest of the network; local messages replace them on the
-  # player's current server. Set any value to '' to disable that announcement.
+  # player's current server and also fire on server switches. Join messages are not sent
+  # to the joining player. Set any value to '' to disable that announcement.
   global-join: ''
   global-leave: ''
   join: '<yellow><name> joined the server.</yellow>'

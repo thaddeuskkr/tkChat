@@ -81,14 +81,17 @@ class VelocityDeliveryServiceTest {
 
     @Test
     void lifecycleFormatsRespectServerScopeWithoutDuplicateGlobalMessages() {
+        UUID senderId = UUID.randomUUID();
         AtomicReference<Component> localReceived = new AtomicReference<>();
         AtomicReference<Component> remoteReceived = new AtomicReference<>();
-        Player localViewer = playerOnServer("lobby", localReceived);
-        Player remoteViewer = playerOnServer("survival", remoteReceived);
+        AtomicReference<Component> joiningPlayerReceived = new AtomicReference<>();
+        Player localViewer = playerOnServer(UUID.randomUUID(), "lobby", localReceived);
+        Player remoteViewer = playerOnServer(UUID.randomUUID(), "survival", remoteReceived);
+        Player joiningPlayer = playerOnServer(senderId, "lobby", joiningPlayerReceived);
         ProxyServer proxy = (ProxyServer) Proxy.newProxyInstance(
                 ProxyServer.class.getClassLoader(), new Class<?>[]{ProxyServer.class},
                 (ignored, method, arguments) -> method.getName().equals("getAllPlayers")
-                        ? List.of(localViewer, remoteViewer)
+                        ? List.of(localViewer, remoteViewer, joiningPlayer)
                         : defaultValue(method.getReturnType()));
         ChannelDefinition global = new ChannelDefinition(
                 "global", "Global", ChannelScope.GLOBAL,
@@ -104,7 +107,7 @@ class VelocityDeliveryServiceTest {
         ApprovedMessage message = new ApprovedMessage(
                 UUID.randomUUID(), Instant.now(), RouteKind.CHANNEL,
                 "join", "join", "presence", ChannelScope.SERVER,
-                UUID.randomUUID(), "<red>Alice</red>", "lobby",
+                senderId, "<red>Alice</red>", "lobby",
                 "", "", "fallback", Set.of(), null, Set.of()).asJoinMessage();
 
         delivery.deliver(message);
@@ -112,6 +115,7 @@ class VelocityDeliveryServiceTest {
         assertEquals("<red>Alice</red> joined lobby: fallback",
                 plain(localReceived.get()));
         assertNull(remoteReceived.get());
+        assertNull(joiningPlayerReceived.get());
 
         localReceived.set(null);
         ApprovedMessage globalMessage = new ApprovedMessage(
@@ -125,6 +129,7 @@ class VelocityDeliveryServiceTest {
         assertNull(localReceived.get());
         assertEquals("Global: <red>Alice</red> joined lobby",
                 plain(remoteReceived.get()));
+        assertNull(joiningPlayerReceived.get());
 
         formats.join = "";
         localReceived.set(null);
@@ -139,9 +144,11 @@ class VelocityDeliveryServiceTest {
                 plain(localReceived.get()));
         assertEquals("Global: <red>Alice</red> joined lobby",
                 plain(remoteReceived.get()));
+        assertNull(joiningPlayerReceived.get());
     }
 
     private static Player playerOnServer(
+            UUID playerId,
             String serverName,
             AtomicReference<Component> received
     ) {
@@ -152,7 +159,6 @@ class VelocityDeliveryServiceTest {
                 (ignored, method, arguments) -> method.getName().equals("getServerInfo")
                         ? serverInfo
                         : defaultValue(method.getReturnType()));
-        UUID playerId = UUID.randomUUID();
         return (Player) Proxy.newProxyInstance(
                 Player.class.getClassLoader(), new Class<?>[]{Player.class},
                 (ignored, method, arguments) -> switch (method.getName()) {

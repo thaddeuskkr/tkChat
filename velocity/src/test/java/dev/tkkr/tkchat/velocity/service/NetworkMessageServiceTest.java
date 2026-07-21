@@ -87,6 +87,19 @@ class NetworkMessageServiceTest {
         assertEquals("survival", localLeave.senderServerId());
         org.junit.jupiter.api.Assertions.assertTrue(localLeave.hasLeaveMarker());
         assertEquals("Broadcaster left the server.", localLeave.content());
+
+        messages.playerSwitchedServers(
+                player, "survival", "minigames").toCompletableFuture().join();
+
+        ApprovedMessage switchLeave = transport.publishedMessages.get(4);
+        ApprovedMessage switchJoin = transport.publishedMessages.get(5);
+        assertEquals(6, transport.publishedMessages.size());
+        assertEquals(ChannelScope.SERVER, switchLeave.channelScope());
+        assertEquals("survival", switchLeave.senderServerId());
+        org.junit.jupiter.api.Assertions.assertTrue(switchLeave.hasLeaveMarker());
+        assertEquals(ChannelScope.SERVER, switchJoin.channelScope());
+        assertEquals("minigames", switchJoin.senderServerId());
+        org.junit.jupiter.api.Assertions.assertTrue(switchJoin.hasJoinMarker());
     }
 
     private static CommandSource console() {

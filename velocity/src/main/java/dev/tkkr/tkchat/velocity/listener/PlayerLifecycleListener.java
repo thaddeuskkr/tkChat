@@ -101,8 +101,17 @@ public final class PlayerLifecycleListener {
         String serverId = serverId(player);
         ConnectedPlayer current = new ConnectedPlayer(player, serverId);
         if (event.getPreviousServer() != null) {
+            String previousServerId = event.getPreviousServer().getServerInfo().getName();
             connectedPlayers.compute(player.getUniqueId(), (ignored, connected) ->
                     connected == null || connected.player() == player ? current : connected);
+            if (!previousServerId.equals(serverId)) {
+                networkMessages.playerSwitchedServers(
+                        player, previousServerId, serverId).exceptionally(error -> {
+                            logger.warn("Could not publish server-switch messages for {}: {}",
+                                    player.getUsername(), unwrap(error).toString());
+                            return null;
+                        });
+            }
             return;
         }
         ConnectedPlayer previous = connectedPlayers.put(player.getUniqueId(), current);

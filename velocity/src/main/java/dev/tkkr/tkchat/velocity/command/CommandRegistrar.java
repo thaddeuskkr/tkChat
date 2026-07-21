@@ -7,6 +7,7 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import dev.tkkr.tkchat.core.service.ChannelRegistry;
 import dev.tkkr.tkchat.core.service.SocialRepository;
 import dev.tkkr.tkchat.velocity.Permissions;
+import dev.tkkr.tkchat.velocity.TkChatPlugin;
 import dev.tkkr.tkchat.velocity.config.AppConfig;
 import dev.tkkr.tkchat.velocity.config.ConfigReloadResult;
 import dev.tkkr.tkchat.velocity.config.ResponseKey;
@@ -107,15 +108,29 @@ public final class CommandRegistrar {
         ArrayList<CommandSpec> specs = new ArrayList<>();
 
         add(specs, rootChildren, "channel", "channel", Permissions.command("channel"),
-                channelCommand, "ch");
+                channelCommand,
+                "/tkchat channel [channel]",
+                "View available chat channels or choose your active channel.",
+                "ch");
         add(specs, rootChildren, "msg", "message", Permissions.command("message"),
-                new MessageCommand(proxy, chat, responses), "tell", "w", "message");
+                new MessageCommand(proxy, chat, responses),
+                "/tkchat message <player> <message>",
+                "Send a private message to an online player.",
+                "tell", "w", "message");
         add(specs, rootChildren, "reply", "reply", Permissions.command("reply"),
-                new ReplyCommand(chat, responses), "r");
+                new ReplyCommand(chat, responses),
+                "/tkchat reply <message>",
+                "Reply to the last player you privately messaged.",
+                "r");
         add(specs, rootChildren, "me", "me", Permissions.command("me"),
-                new MeCommand(chat, states, responses, config.chat));
+                new MeCommand(chat, states, responses, config.chat),
+                "/tkchat me <action>",
+                "Send an action to your active chat channel.");
         add(specs, rootChildren, "group", "group", Permissions.command("group"),
-                new GroupCommand(proxy, repository, chat, states, channels, access, responses), "party");
+                new GroupCommand(proxy, repository, chat, states, channels, access, responses),
+                "/tkchat group <create|list|join|invite|accept|leave|chat>",
+                "Create, browse, join, and manage chat groups.",
+                "party");
         SimpleCommand groupChat = invocation -> {
             if (!(invocation.source() instanceof com.velocitypowered.api.proxy.Player player)) {
                 invocation.source().sendMessage(responses.message(
@@ -143,28 +158,53 @@ public final class CommandRegistrar {
             }
         };
         add(specs, rootChildren, "groupchat", "groupchat", Permissions.command("groupchat"),
-                groupChat, "gc", "pc");
+                groupChat,
+                "/tkchat groupchat [message]",
+                "Switch to your group channel or send one group message.",
+                "gc", "pc");
         add(specs, rootChildren, "ignore", "ignore", Permissions.command("ignore"),
-                new IgnoreCommand(proxy, states, responses), "block");
+                new IgnoreCommand(proxy, states, responses),
+                "/tkchat ignore <player>",
+                "Toggle whether you ignore messages from a player.",
+                "block");
         add(specs, rootChildren, "dmtoggle", "dmtoggle", Permissions.command("dmtoggle"),
-                new DirectMessagesToggleCommand(states, responses));
+                new DirectMessagesToggleCommand(states, responses),
+                "/tkchat dmtoggle",
+                "Toggle whether you accept private messages.");
         add(specs, rootChildren, "broadcast", "broadcast", Permissions.command("broadcast"),
-                new BroadcastCommand(networkMessages, config.chat, responses), "bc");
+                new BroadcastCommand(networkMessages, config.chat, responses),
+                "/tkchat broadcast <message>",
+                "Broadcast a message across the network.",
+                "bc");
         add(specs, rootChildren, "clearchat", "clearchat", Permissions.command("clearchat"),
-                new ClearChatCommand(networkMessages, channels, responses));
+                new ClearChatCommand(networkMessages, channels, responses),
+                "/tkchat clearchat <channel>",
+                "Clear visible chat history for a channel.");
         add(specs, rootChildren, "socialspy", "socialspy", Permissions.command("socialspy"),
-                new SocialSpyCommand(spies, responses), "spy");
+                new SocialSpyCommand(spies, responses),
+                "/tkchat socialspy [on|off]",
+                "View eligible messages that you would not normally receive.",
+                "spy");
 
         for (var channel : channels.all()) {
             add(specs, rootChildren, channel.id(), channel.id(), Permissions.command("channel"),
                     new QuickChannelCommand(channel, channelCommand, chat, responses),
+                    "/tkchat " + channel.id() + " [message]",
+                    "Switch to the " + channel.displayName()
+                            + " channel or send one message without switching.",
                     channel.aliases().toArray(String[]::new));
         }
 
         putRoot(rootChildren, new TkChatCommand.Child(
-                "reload", Permissions.command("reload"), new ReloadCommand(reload, responses)));
+                "reload",
+                Permissions.command("reload"),
+                new ReloadCommand(reload, responses),
+                new TkChatCommand.Help(
+                        "/tkchat reload",
+                        "Reload tkChat's runtime configuration.",
+                        List.of())));
         specs.add(new CommandSpec("tkchat", "", new TkChatCommand(
-                List.copyOf(rootChildren.values()), responses), List.of()));
+                List.copyOf(rootChildren.values()), TkChatPlugin.VERSION, responses), List.of()));
         return List.copyOf(specs);
     }
 
@@ -175,10 +215,19 @@ public final class CommandRegistrar {
             String rootName,
             String permission,
             SimpleCommand command,
+            String usage,
+            String description,
             String... aliases
     ) {
         specs.add(new CommandSpec(standaloneName, permission, command, List.of(aliases)));
-        putRoot(rootChildren, new TkChatCommand.Child(rootName, permission, command));
+        ArrayList<String> helpAliases = new ArrayList<>();
+        helpAliases.add(standaloneName);
+        helpAliases.addAll(List.of(aliases));
+        putRoot(rootChildren, new TkChatCommand.Child(
+                rootName,
+                permission,
+                command,
+                new TkChatCommand.Help(usage, description, helpAliases)));
     }
 
     private static void putRoot(

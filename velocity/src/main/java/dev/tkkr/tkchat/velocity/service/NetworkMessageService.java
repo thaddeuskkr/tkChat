@@ -73,6 +73,20 @@ public final class NetworkMessageService {
         return publishBoth(global, local);
     }
 
+    public CompletionStage<Void> playerSwitchedServers(
+            Player player,
+            String previousServerId,
+            String currentServerId
+    ) {
+        ApprovedMessage leave = lifecycleMessage(
+                player, previousServerId, "leave", ChannelScope.SERVER,
+                player.getUsername() + " left the server.").asLeaveMessage();
+        ApprovedMessage join = lifecycleMessage(
+                player, currentServerId, "join", ChannelScope.SERVER,
+                player.getUsername() + " joined the server.").asJoinMessage();
+        return publishBoth(leave, join);
+    }
+
     private static ApprovedMessage message(
             CommandSource source,
             RouteKind kind,

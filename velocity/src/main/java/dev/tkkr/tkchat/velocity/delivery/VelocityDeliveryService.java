@@ -173,6 +173,10 @@ public final class VelocityDeliveryService {
     }
 
     private boolean shouldReceive(Player player, ApprovedMessage message) {
+        if ((message.hasJoinMarker() || message.hasGlobalJoinMarker())
+                && player.getUniqueId().equals(message.senderId())) {
+            return false;
+        }
         if (message.hasJoinMarker() || message.hasLeaveMarker()) {
             return isOnServer(player, message.senderServerId());
         }
