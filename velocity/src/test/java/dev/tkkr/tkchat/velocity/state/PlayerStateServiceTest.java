@@ -10,6 +10,8 @@ import dev.tkkr.tkchat.core.service.InMemorySocialRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -23,6 +25,21 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlayerStateServiceTest {
+    @Test
+    void namedLoginLoadRecordsThePlayersLatestUsername() {
+        UUID playerId = UUID.randomUUID();
+        InMemorySocialRepository repository = new InMemorySocialRepository("global");
+        PlayerStateService states = new PlayerStateService(
+                repository, channels(channel("global")), "global");
+
+        states.activate(playerId);
+        states.load(playerId, "FirstName").toCompletableFuture().join();
+        states.load(playerId, "LatestName").toCompletableFuture().join();
+
+        assertEquals(Map.of(playerId, "LatestName"), repository.playerNames(Set.of(playerId))
+                .toCompletableFuture().join());
+    }
+
     @Test
     void reconfigureRepairsAnActiveChannelThatWasRemoved() {
         UUID playerId = UUID.randomUUID();

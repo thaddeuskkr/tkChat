@@ -249,6 +249,7 @@ gamemode, region, and other backend-only contexts are not inferred by the proxy 
 - `/msg <player> <message>` (`/tell`, `/w`, `/message`)
 - `/reply <message>` (`/r`)
 - `/me <action>`; sends to the active channel and uses `formats.me`
+- `/group` (show the current group's owner, visibility, members, and pending invitees)
 - `/group create <name> [password]` (no password creates a public group; providing one creates a private group)
 - `/group list`
 - `/group join <name> [password]`
@@ -284,7 +285,9 @@ in `/channel` under its normalized name, so `/channel builders` switches normal 
 `Builders` group. Private-group passwords are stored only as salted PBKDF2-SHA256 hashes;
 invitations bypass the password and expire after five minutes. MariaDB enforces unique normalized
 group names and one group membership per player. Group creation, joining, leaving, disbanding,
-invitation consumption, and affected active-channel repairs are transactional.
+invitation consumption, and affected active-channel repairs are transactional. tkChat also records
+each player's latest username during login, allowing group rosters to retain names when players are
+offline without relying on LuckPerms' user cache; offline roster entries are marked explicitly.
 
 ## Chat features
 

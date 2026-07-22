@@ -9,6 +9,7 @@ import dev.tkkr.tkchat.core.model.PlayerSocialState;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -39,6 +40,19 @@ public interface SocialRepository extends AutoCloseable {
                         (parts, members) -> new PlayerSocialState(
                                 parts.settings(), parts.membership(), parts.ignored(), members));
     }
+
+    default CompletionStage<PlayerSocialState> loadPlayerState(
+            UUID playerId,
+            String username,
+            String defaultChannel
+    ) {
+        return recordPlayerName(playerId, username)
+                .thenCompose(ignored -> loadPlayerState(playerId, defaultChannel));
+    }
+
+    CompletionStage<Void> recordPlayerName(UUID playerId, String username);
+
+    CompletionStage<Map<UUID, String>> playerNames(Set<UUID> playerIds);
 
     CompletionStage<Void> setActiveChannel(UUID playerId, String channelId);
 
@@ -74,6 +88,8 @@ public interface SocialRepository extends AutoCloseable {
     CompletionStage<Optional<GroupMembership>> groupForMember(UUID playerId);
 
     CompletionStage<Set<UUID>> groupMembers(UUID groupId);
+
+    CompletionStage<Set<UUID>> groupInvitees(UUID groupId, Instant now);
 
     CompletionStage<Void> invite(UUID groupId, UUID inviterId, UUID invitedId, Instant expiresAt);
 

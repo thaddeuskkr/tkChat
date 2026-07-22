@@ -25,7 +25,9 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -60,6 +62,7 @@ public final class MariaDbSocialRepository implements SocialRepository {
 
     private final HikariDataSource dataSource;
     private final ExecutorService executor;
+    private final String playersTable;
     private final String settingsTable;
     private final String groupsTable;
     private final String membersTable;
@@ -70,6 +73,7 @@ public final class MariaDbSocialRepository implements SocialRepository {
     public MariaDbSocialRepository(AppConfig.MariaDb config, String defaultChannel) throws SQLException {
         this.defaultChannel = defaultChannel;
         String prefix = config.tablePrefix;
+        playersTable = table(prefix + "_players");
         settingsTable = table(prefix + "_player_settings");
         groupsTable = table(prefix + "_groups");
         membersTable = table(prefix + "_group_members");
@@ -123,6 +127,14 @@ public final class MariaDbSocialRepository implements SocialRepository {
     private void initializeSchema() throws SQLException {
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
+            statement.executeUpdate("""
+                    CREATE TABLE IF NOT EXISTS %s (
+                        player_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+                        username VARCHAR(64) NOT NULL,
+                        updated_at BIGINT NOT NULL,
+                        PRIMARY KEY (player_id)
+                    ) ENGINE=InnoDB
+                    """.formatted(playersTable));
             statement.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS %s (
                         player_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -199,7 +211,27 @@ public final class MariaDbSocialRepository implements SocialRepository {
             UUID playerId,
             String requestedDefaultChannel
     ) {
+        return loadPlayerStateSnapshot(playerId, null, requestedDefaultChannel);
+    }
+
+    @Override
+    public CompletionStage<PlayerSocialState> loadPlayerState(
+            UUID playerId,
+            String username,
+            String requestedDefaultChannel
+    ) {
+        return loadPlayerStateSnapshot(playerId, username, requestedDefaultChannel);
+    }
+
+    private CompletionStage<PlayerSocialState> loadPlayerStateSnapshot(
+            UUID playerId,
+            String username,
+            String requestedDefaultChannel
+    ) {
         return supply(() -> transaction(connection -> {
+            if (username != null) {
+                upsertPlayerName(connection, playerId, username);
+            }
             ensureSettings(connection, playerId, requestedDefaultChannel);
             PlayerSettings settings = requireSettings(connection, playerId);
             Optional<GroupMembership> membership = findMembership(connection, playerId, false);
@@ -209,6 +241,43 @@ public final class MariaDbSocialRepository implements SocialRepository {
             Set<UUID> ignored = findIgnoredPlayers(connection, playerId);
             return new PlayerSocialState(settings, membership, ignored, members);
         }));
+    }
+
+    @Override
+    public CompletionStage<Void> recordPlayerName(UUID playerId, String username) {
+        return run(() -> {
+            try (Connection connection = dataSource.getConnection()) {
+                upsertPlayerName(connection, playerId, username);
+            }
+        });
+    }
+
+    @Override
+    public CompletionStage<Map<UUID, String>> playerNames(Set<UUID> playerIds) {
+        if (playerIds.isEmpty()) {
+            return CompletableFuture.completedFuture(Map.of());
+        }
+        List<UUID> orderedIds = List.copyOf(playerIds);
+        String placeholders = String.join(", ", java.util.Collections.nCopies(
+                orderedIds.size(), "?"));
+        return supply(() -> {
+            Map<UUID, String> result = new LinkedHashMap<>();
+            try (Connection connection = dataSource.getConnection();
+                 PreparedStatement statement = connection.prepareStatement(
+                         "SELECT player_id, username FROM " + playersTable
+                                 + " WHERE player_id IN (" + placeholders + ")")) {
+                for (int index = 0; index < orderedIds.size(); index++) {
+                    statement.setString(index + 1, orderedIds.get(index).toString());
+                }
+                try (ResultSet rows = statement.executeQuery()) {
+                    while (rows.next()) {
+                        result.put(UUID.fromString(rows.getString("player_id")),
+                                rows.getString("username"));
+                    }
+                }
+            }
+            return Map.copyOf(result);
+        });
     }
 
     @Override
@@ -378,6 +447,26 @@ public final class MariaDbSocialRepository implements SocialRepository {
             try (Connection connection = dataSource.getConnection()) {
                 return findGroupMembers(connection, groupId);
             }
+        });
+    }
+
+    @Override
+    public CompletionStage<Set<UUID>> groupInvitees(UUID groupId, java.time.Instant now) {
+        return supply(() -> {
+            Set<UUID> result = new HashSet<>();
+            try (Connection connection = dataSource.getConnection();
+                 PreparedStatement statement = connection.prepareStatement(
+                         "SELECT invited_id FROM " + invitesTable
+                                 + " WHERE group_id = ? AND expires_at > ?")) {
+                statement.setString(1, groupId.toString());
+                statement.setLong(2, now.toEpochMilli());
+                try (ResultSet rows = statement.executeQuery()) {
+                    while (rows.next()) {
+                        result.add(UUID.fromString(rows.getString("invited_id")));
+                    }
+                }
+            }
+            return Set.copyOf(result);
         });
     }
 
@@ -609,6 +698,24 @@ public final class MariaDbSocialRepository implements SocialRepository {
                 """.formatted(settingsTable))) {
             statement.setString(1, playerId.toString());
             statement.setString(2, requestedDefaultChannel);
+            statement.executeUpdate();
+        }
+    }
+
+    private void upsertPlayerName(
+            Connection connection,
+            UUID playerId,
+            String username
+    ) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                INSERT INTO %s (player_id, username, updated_at)
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    username = VALUE(username), updated_at = VALUE(updated_at)
+                """.formatted(playersTable))) {
+            statement.setString(1, playerId.toString());
+            statement.setString(2, username);
+            statement.setLong(3, System.currentTimeMillis());
             statement.executeUpdate();
         }
     }

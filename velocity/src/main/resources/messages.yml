@@ -1,6 +1,7 @@
 # Command responses use MiniMessage. Dynamic placeholders such as <player>, <group>,
 # <channel>, <commands>, <command>, <description>, <usage>, <aliases>,
-# <permission>, <version>, <visibility>, <button>, <max_length>, and <sections>
+# <permission>, <version>, <visibility>, <owner>, <members>, <button>, <max_length>,
+# and <sections>
 # are available only in the responses where they appear below.
 general:
   no-permission: '<red>You do not have permission to use this command.</red>'
@@ -73,6 +74,10 @@ group:
   storage-unavailable: '<red>Group storage is unavailable.</red>'
   status-none: '<gray>You are not in a group. Use /group list to browse public groups.</gray>'
   status-member: '<gray>Group: <aqua><group></aqua> <dark_gray>· <visibility></dark_gray> <button></gray>'
+  status-owner: '<gray>Owner: <owner></gray>'
+  status-members: '<gray>Members: <members></gray>'
+  status-invited-tag: '<dark_gray> [invited]</dark_gray>'
+  status-offline-tag: '<dark_gray> (offline)</dark_gray>'
   create-usage: '<red>Usage: /group create <name> [password]</red>'
   invalid-name: '<red>Group names must match [A-Za-z0-9_-]{1,32}.</red>'
   invalid-password: '<red>Passwords must be 4-64 characters without whitespace.</red>'

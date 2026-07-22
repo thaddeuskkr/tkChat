@@ -28,6 +28,7 @@ public final class InMemorySocialRepository implements SocialRepository {
     }
 
     private final Map<UUID, PlayerSettings> settings = new ConcurrentHashMap<>();
+    private final Map<UUID, String> knownPlayerNames = new ConcurrentHashMap<>();
     private final Map<UUID, StoredGroup> groups = new ConcurrentHashMap<>();
     private final Map<String, UUID> groupNames = new ConcurrentHashMap<>();
     private final Map<UUID, GroupMembership> memberships = new ConcurrentHashMap<>();
@@ -52,6 +53,24 @@ public final class InMemorySocialRepository implements SocialRepository {
     public CompletionStage<PlayerSettings> settings(UUID playerId, String requestedDefaultChannel) {
         return completed(settings.computeIfAbsent(playerId,
                 id -> new PlayerSettings(id, requestedDefaultChannel, true)));
+    }
+
+    @Override
+    public CompletionStage<Void> recordPlayerName(UUID playerId, String username) {
+        knownPlayerNames.put(playerId, username);
+        return completed(null);
+    }
+
+    @Override
+    public CompletionStage<Map<UUID, String>> playerNames(Set<UUID> playerIds) {
+        Map<UUID, String> result = new java.util.HashMap<>();
+        playerIds.forEach(playerId -> {
+            String username = knownPlayerNames.get(playerId);
+            if (username != null) {
+                result.put(playerId, username);
+            }
+        });
+        return completed(Map.copyOf(result));
     }
 
     @Override
@@ -146,6 +165,16 @@ public final class InMemorySocialRepository implements SocialRepository {
         return completed(memberships.values().stream()
                 .filter(membership -> membership.group().id().equals(groupId))
                 .map(GroupMembership::memberId)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet()));
+    }
+
+    @Override
+    public synchronized CompletionStage<Set<UUID>> groupInvitees(UUID groupId, Instant now) {
+        invites.entrySet().removeIf(entry -> entry.getValue().groupId().equals(groupId)
+                && !entry.getValue().expiresAt().isAfter(now));
+        return completed(invites.values().stream()
+                .filter(invite -> invite.groupId().equals(groupId))
+                .map(Invite::invitedId)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet()));
     }
 

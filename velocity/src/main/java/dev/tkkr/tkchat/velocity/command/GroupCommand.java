@@ -19,22 +19,41 @@ import dev.tkkr.tkchat.velocity.service.ResponseService;
 import dev.tkkr.tkchat.velocity.service.VelocityChatService;
 import dev.tkkr.tkchat.velocity.state.PlayerStateService;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.CompletionException;
+import java.util.function.BiPredicate;
 
 public final class GroupCommand implements SimpleCommand {
+    private record GroupRoster(Group group, Set<UUID> members, Set<UUID> invitees) {
+    }
+
+    private record NamedMember(String name, boolean invited, boolean online) {
+    }
+
+    private record GroupStatus(Group group, NamedMember owner, List<NamedMember> members) {
+    }
+
     private final ProxyServer proxy;
     private final SocialRepository repository;
     private final VelocityChatService chat;
     private final PlayerStateService states;
     private final ChannelRegistry channels;
-    private final VelocityAccessController access;
+    private final BiPredicate<Player, String> hasPermission;
     private final ResponseService responses;
 
     public GroupCommand(
@@ -46,12 +65,24 @@ public final class GroupCommand implements SimpleCommand {
             VelocityAccessController access,
             ResponseService responses
     ) {
+        this(proxy, repository, chat, states, channels, access::hasPermission, responses);
+    }
+
+    GroupCommand(
+            ProxyServer proxy,
+            SocialRepository repository,
+            VelocityChatService chat,
+            PlayerStateService states,
+            ChannelRegistry channels,
+            BiPredicate<Player, String> hasPermission,
+            ResponseService responses
+    ) {
         this.proxy = proxy;
         this.repository = repository;
         this.chat = chat;
         this.states = states;
         this.channels = channels;
-        this.access = access;
+        this.hasPermission = hasPermission;
         this.responses = responses;
     }
 
@@ -83,21 +114,101 @@ public final class GroupCommand implements SimpleCommand {
     }
 
     private void showStatus(Player player) {
-        repository.groupForMember(player.getUniqueId()).whenComplete((membership, error) -> {
+        repository.groupForMember(player.getUniqueId()).thenCompose(membership -> {
+            if (membership.isEmpty()) {
+                return CompletableFuture.completedFuture((GroupStatus) null);
+            }
+            Group group = membership.get().group();
+            CompletionStage<Set<UUID>> members = repository.groupMembers(group.id());
+            CompletionStage<Set<UUID>> invitees = repository.groupInvitees(group.id(), Instant.now());
+            return members.thenCombine(invitees, (accepted, invited) ->
+                            new GroupRoster(group, accepted, invited))
+                    .thenCompose(this::resolveRoster);
+        }).whenComplete((status, error) -> {
             if (error != null) {
                 player.sendMessage(responses.message(ResponseKey.GROUP_STORAGE_UNAVAILABLE));
-            } else if (membership.isEmpty()) {
+            } else if (status == null) {
                 player.sendMessage(responses.message(ResponseKey.GROUP_STATUS_NONE));
             } else {
-                Group group = membership.get().group();
+                Group group = status.group();
                 player.sendMessage(responses.message(
                         ResponseKey.GROUP_STATUS_MEMBER,
                         ResponseService.text("group", group.name()),
                         ResponseService.text("visibility",
                                 group.visibility().name().toLowerCase(Locale.ROOT)),
                         ResponseService.component("button", switchButton(group))));
+                player.sendMessage(responses.message(
+                        ResponseKey.GROUP_STATUS_OWNER,
+                        ResponseService.component("owner", playerComponent(status.owner()))));
+                player.sendMessage(responses.message(
+                        ResponseKey.GROUP_STATUS_MEMBERS,
+                        ResponseService.component("members", rosterComponent(status.members()))));
             }
         });
+    }
+
+    private CompletionStage<GroupStatus> resolveRoster(GroupRoster roster) {
+        LinkedHashSet<UUID> ids = new LinkedHashSet<>();
+        ids.add(roster.group().ownerId());
+        ids.addAll(roster.members());
+        ids.addAll(roster.invitees());
+        return repository.playerNames(Set.copyOf(ids)).thenApply(names -> {
+            Comparator<NamedMember> byName = Comparator.comparing(
+                    NamedMember::name, String.CASE_INSENSITIVE_ORDER);
+            List<NamedMember> accepted = roster.members().stream()
+                    .filter(id -> !id.equals(roster.group().ownerId()))
+                    .map(id -> namedMember(id, names, false))
+                    .sorted(byName)
+                    .toList();
+            List<NamedMember> invited = roster.invitees().stream()
+                    .filter(id -> !roster.members().contains(id))
+                    .map(id -> namedMember(id, names, true))
+                    .sorted(byName)
+                    .toList();
+            NamedMember owner = namedMember(roster.group().ownerId(), names, false);
+            List<NamedMember> displayed = new ArrayList<>(1 + accepted.size() + invited.size());
+            displayed.add(owner);
+            displayed.addAll(accepted);
+            displayed.addAll(invited);
+            return new GroupStatus(roster.group(), owner, List.copyOf(displayed));
+        });
+    }
+
+    private NamedMember namedMember(
+            UUID playerId,
+            Map<UUID, String> storedNames,
+            boolean invited
+    ) {
+        Player online = proxy.getPlayer(playerId).orElse(null);
+        if (online != null) {
+            return new NamedMember(online.getUsername(), invited, true);
+        }
+        return new NamedMember(storedNames.getOrDefault(playerId, playerId.toString()),
+                invited, false);
+    }
+
+    private Component rosterComponent(List<NamedMember> members) {
+        Component roster = Component.empty();
+        for (int index = 0; index < members.size(); index++) {
+            if (index > 0) {
+                roster = roster.append(Component.text(", "));
+            }
+            NamedMember member = members.get(index);
+            roster = roster.append(playerComponent(member));
+        }
+        return roster;
+    }
+
+    private Component playerComponent(NamedMember member) {
+        Component result = Component.text(member.name(),
+                member.online() ? NamedTextColor.WHITE : NamedTextColor.GRAY);
+        if (member.invited()) {
+            result = result.append(responses.content(ResponseKey.GROUP_STATUS_INVITED_TAG));
+        }
+        if (!member.online()) {
+            result = result.append(responses.content(ResponseKey.GROUP_STATUS_OFFLINE_TAG));
+        }
+        return result;
     }
 
     private void create(Player player, String[] args) {
@@ -324,7 +435,7 @@ public final class GroupCommand implements SimpleCommand {
     }
 
     private boolean isGroupAdmin(Player player) {
-        return access.hasPermission(player, Permissions.BYPASS_PRIVATE_GROUPS);
+        return hasPermission.test(player, Permissions.BYPASS_PRIVATE_GROUPS);
     }
 
     private void usage(Player player) {

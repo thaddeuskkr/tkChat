@@ -14,6 +14,8 @@ import java.sql.DriverManager;
 import java.sql.Statement;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
 
@@ -58,7 +60,8 @@ class MariaDbSocialRepositoryIntegrationTest {
                 config.jdbcUrl, config.username, config.password);
              Statement statement = connection.createStatement()) {
             for (String suffix : List.of(
-                    "group_invites", "group_members", "ignores", "groups", "player_settings")) {
+                    "group_invites", "group_members", "ignores", "groups", "player_settings",
+                    "players")) {
                 statement.executeUpdate("DROP TABLE IF EXISTS `"
                         + config.tablePrefix + "_" + suffix + "`");
             }
@@ -77,13 +80,21 @@ class MariaDbSocialRepositoryIntegrationTest {
         var group = repository.createGroup(
                 player, "Builders", GroupVisibility.PUBLIC, null).toCompletableFuture().join();
 
-        var snapshot = repository.loadPlayerState(player, "global").toCompletableFuture().join();
+        var snapshot = repository.loadPlayerState(player, "BuilderOne", "global")
+                .toCompletableFuture().join();
 
         assertEquals("local", snapshot.settings().activeChannel());
         assertFalse(snapshot.settings().directMessagesEnabled());
         assertTrue(snapshot.ignoredPlayers().contains(ignored));
         assertEquals(group.id(), snapshot.groupMembership().orElseThrow().group().id());
-        assertEquals(java.util.Set.of(player), snapshot.groupMembers());
+        assertEquals(Set.of(player), snapshot.groupMembers());
+        assertEquals(Map.of(player, "BuilderOne"), repository.playerNames(Set.of(player, ignored))
+                .toCompletableFuture().join());
+
+        repository.recordPlayerName(player, "BuilderRenamed").toCompletableFuture().join();
+
+        assertEquals(Map.of(player, "BuilderRenamed"), repository.playerNames(Set.of(player))
+                .toCompletableFuture().join());
     }
 
     @Test
@@ -116,6 +127,8 @@ class MariaDbSocialRepositoryIntegrationTest {
 
         repository.invite(group.id(), owner, expiredInvitee, Instant.now().minusSeconds(1))
                 .toCompletableFuture().join();
+        assertEquals(java.util.Set.of(), repository.groupInvitees(group.id(), Instant.now())
+                .toCompletableFuture().join());
         CompletionException expiredInvite = assertThrows(CompletionException.class, () -> repository
                 .acceptInvite(expiredInvitee, "privateteam", Instant.now())
                 .toCompletableFuture().join());
@@ -124,8 +137,12 @@ class MariaDbSocialRepositoryIntegrationTest {
 
         repository.invite(group.id(), owner, member, Instant.now().plusSeconds(60))
                 .toCompletableFuture().join();
+        assertEquals(java.util.Set.of(member), repository.groupInvitees(group.id(), Instant.now())
+                .toCompletableFuture().join());
         repository.acceptInvite(member, "PRIVATEteam", Instant.now())
                 .toCompletableFuture().join();
+        assertEquals(java.util.Set.of(), repository.groupInvitees(group.id(), Instant.now())
+                .toCompletableFuture().join());
         repository.setActiveChannel(owner, GroupChannels.id(group.id())).toCompletableFuture().join();
         repository.setActiveChannel(member, GroupChannels.id(group.id())).toCompletableFuture().join();
 

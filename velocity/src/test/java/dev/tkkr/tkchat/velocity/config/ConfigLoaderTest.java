@@ -71,7 +71,11 @@ class ConfigLoaderTest {
                 .replace("  active-set-other: '<green>Set <player>''s active channel to <channel>.</green>'\n", "")
                 .replace("  active-set-forced: '<green>Your active channel was set to <channel>.</green>'\n", "")
                 .replace("  target-offline: '<red>That player is not online.</red>'\n", "")
-                .replace("  target-not-ready: '<red>That player''s chat data is not ready.</red>'\n", "");
+                .replace("  target-not-ready: '<red>That player''s chat data is not ready.</red>'\n", "")
+                .replace("  status-owner: '<gray>Owner: <owner></gray>'\n", "")
+                .replace("  status-members: '<gray>Members: <members></gray>'\n", "")
+                .replace("  status-invited-tag: '<dark_gray> [invited]</dark_gray>'\n", "")
+                .replace("  status-offline-tag: '<dark_gray> (offline)</dark_gray>'\n", "");
         Files.writeString(messagesPath, oldMessages);
 
         AppConfig upgraded = new ConfigLoader().load(directory);
@@ -86,6 +90,12 @@ class ConfigLoaderTest {
                 upgraded.messages.template(ResponseKey.ME_USAGE));
         assertEquals("<green>Set <player>'s active channel to <channel>.</green>",
                 upgraded.messages.template(ResponseKey.CHANNEL_ACTIVE_SET_OTHER));
+        assertEquals("<gray>Owner: <owner></gray>",
+                upgraded.messages.template(ResponseKey.GROUP_STATUS_OWNER));
+        assertEquals("<dark_gray> [invited]</dark_gray>",
+                upgraded.messages.template(ResponseKey.GROUP_STATUS_INVITED_TAG));
+        assertEquals("<dark_gray> (offline)</dark_gray>",
+                upgraded.messages.template(ResponseKey.GROUP_STATUS_OFFLINE_TAG));
         assertEquals(oldConfig, Files.readString(configPath));
         assertEquals(oldMessages, Files.readString(messagesPath));
     }

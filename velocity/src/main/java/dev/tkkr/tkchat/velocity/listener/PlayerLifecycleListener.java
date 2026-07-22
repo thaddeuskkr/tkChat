@@ -70,7 +70,7 @@ public final class PlayerLifecycleListener {
     public EventTask onLogin(LoginEvent event) {
         Player player = event.getPlayer();
         long generation = activate(player);
-        var completion = states.load(player.getUniqueId()).handle((ignored, error) -> {
+        var completion = states.load(player.getUniqueId(), player.getUsername()).handle((ignored, error) -> {
             if (error != null) {
                 logger.warn("Could not load chat state for {}; retrying in the background: {}",
                         player.getUsername(), unwrap(error).toString());
@@ -86,7 +86,7 @@ public final class PlayerLifecycleListener {
     public void loadExisting(Player player) {
         connectedPlayers.put(player.getUniqueId(), new ConnectedPlayer(player, serverId(player)));
         long generation = activate(player);
-        states.load(player.getUniqueId()).whenComplete((ignored, error) -> {
+        states.load(player.getUniqueId(), player.getUsername()).whenComplete((ignored, error) -> {
             if (error != null) {
                 logger.warn("Could not load chat state for {}; retrying in the background: {}",
                         player.getUsername(), unwrap(error).toString());
@@ -147,13 +147,16 @@ public final class PlayerLifecycleListener {
         if (!generationMatches(playerId, generation)) {
             return;
         }
-        states.load(playerId).whenComplete((ignored, error) -> {
+        Player player = proxy.getPlayer(playerId).orElse(null);
+        if (player == null) {
+            return;
+        }
+        states.load(playerId, player.getUsername()).whenComplete((ignored, error) -> {
             if (!generationMatches(playerId, generation)) {
                 return;
             }
             if (error == null && states.isLoaded(playerId)) {
-                proxy.getPlayer(playerId).ifPresent(player -> player.sendMessage(
-                        responses.message(ResponseKey.FEEDBACK_STATE_LOAD_RECOVERED)));
+                player.sendMessage(responses.message(ResponseKey.FEEDBACK_STATE_LOAD_RECOVERED));
                 return;
             }
             logger.debug("Chat state retry {} failed for {}: {}",

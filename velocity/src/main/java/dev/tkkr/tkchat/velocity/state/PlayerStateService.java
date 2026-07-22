@@ -91,6 +91,10 @@ public final class PlayerStateService implements ChatStateProvider {
     }
 
     public CompletionStage<PlayerSettings> load(UUID playerId) {
+        return load(playerId, null);
+    }
+
+    public CompletionStage<PlayerSettings> load(UUID playerId, String username) {
         Session session = sessions.get(playerId);
         if (session == null) {
             return CompletableFuture.failedFuture(
@@ -101,7 +105,10 @@ public final class PlayerStateService implements ChatStateProvider {
             revision = session.revision;
         }
         long groupRevision = membershipRevision.get();
-        return repository.loadPlayerState(playerId, defaultChannel)
+        CompletionStage<PlayerSocialState> snapshotStage = username == null
+                ? repository.loadPlayerState(playerId, defaultChannel)
+                : repository.loadPlayerState(playerId, username, defaultChannel);
+        return snapshotStage
                 .thenCompose(snapshot -> applyLoadedState(
                         playerId, session, revision, groupRevision, snapshot));
     }
