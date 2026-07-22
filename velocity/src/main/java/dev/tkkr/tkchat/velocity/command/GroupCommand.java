@@ -31,6 +31,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -335,10 +336,18 @@ public final class GroupCommand implements SimpleCommand {
             player.sendMessage(responses.message(ResponseKey.GROUP_JOIN_USAGE));
             return;
         }
-        boolean bypass = isGroupAdmin(player);
+        boolean privateGroupBypass = isGroupAdmin(player);
         String password = args.length == 3 ? args[2] : null;
-        repository.joinGroup(player.getUniqueId(), args[1], password, bypass, Instant.now())
-                .whenComplete((group, error) -> joined(player, group, error));
+        boolean notificationBypass = bypassesJoinNotifications(player);
+        repository.joinGroup(
+                        player.getUniqueId(), args[1], password, privateGroupBypass, Instant.now())
+                .whenComplete((group, error) -> joined(
+                        player,
+                        group,
+                        error,
+                        notificationBypass || (group != null
+                                && group.visibility() == GroupVisibility.PRIVATE
+                                && privateGroupBypass)));
     }
 
     private void invite(Player player, String[] args) {
@@ -394,10 +403,11 @@ public final class GroupCommand implements SimpleCommand {
             return;
         }
         repository.acceptInvite(player.getUniqueId(), args[1], Instant.now())
-                .whenComplete((group, error) -> joined(player, group, error));
+                .whenComplete((group, error) -> joined(
+                        player, group, error, bypassesJoinNotifications(player)));
     }
 
-    private void joined(Player player, Group group, Throwable error) {
+    private void joined(Player player, Group group, Throwable error, boolean silent) {
         if (error != null) {
             sendFailure(player, error);
             return;
@@ -407,6 +417,26 @@ public final class GroupCommand implements SimpleCommand {
                 ResponseKey.GROUP_JOINED,
                 ResponseService.text("group", group.name()),
                 ResponseService.component("button", switchButton(group))));
+        if (!silent) {
+            notifyMembersJoined(player, group);
+        }
+    }
+
+    private void notifyMembersJoined(Player joiningPlayer, Group group) {
+        repository.groupMembers(group.id()).whenComplete((memberIds, error) -> {
+            if (error != null) {
+                return;
+            }
+            Component notification = responses.message(
+                    ResponseKey.GROUP_MEMBER_JOINED,
+                    ResponseService.text("player", joiningPlayer.getUsername()),
+                    ResponseService.text("group", group.name()));
+            memberIds.stream()
+                    .filter(memberId -> !memberId.equals(joiningPlayer.getUniqueId()))
+                    .map(proxy::getPlayer)
+                    .flatMap(Optional::stream)
+                    .forEach(member -> member.sendMessage(notification));
+        });
     }
 
     private void leave(Player player) {
@@ -503,6 +533,10 @@ public final class GroupCommand implements SimpleCommand {
 
     private boolean isGroupAdmin(Player player) {
         return hasPermission.test(player, Permissions.BYPASS_PRIVATE_GROUPS);
+    }
+
+    private boolean bypassesJoinNotifications(Player player) {
+        return hasPermission.test(player, Permissions.BYPASS_GROUP_JOIN_NOTIFICATIONS);
     }
 
     private void usage(Player player) {

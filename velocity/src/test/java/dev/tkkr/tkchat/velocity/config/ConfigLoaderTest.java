@@ -80,7 +80,8 @@ class ConfigLoaderTest {
                 .replace("  list-public-entry: '<dark_gray> • </dark_gray><aqua><group></aqua> <button>'\n", "")
                 .replace("  list-owner: '<dark_gray>· Owner:</dark_gray> <owner> '\n", "")
                 .replace("  invite-members: '<gray>Current members: <members></gray>'\n", "")
-                .replace("  invite-members-unavailable: '<gray>Current members are temporarily unavailable.</gray>'\n", "");
+                .replace("  invite-members-unavailable: '<gray>Current members are temporarily unavailable.</gray>'\n", "")
+                .replace("  member-joined: '<green><player> joined <group>.</green>'\n", "");
         Files.writeString(messagesPath, oldMessages);
 
         AppConfig upgraded = new ConfigLoader().load(directory);
@@ -114,6 +115,8 @@ class ConfigLoaderTest {
                 upgraded.messages.template(ResponseKey.GROUP_INVITE_MEMBERS));
         assertEquals("<gray>Current members are temporarily unavailable.</gray>",
                 upgraded.messages.template(ResponseKey.GROUP_INVITE_MEMBERS_UNAVAILABLE));
+        assertEquals("<green><player> joined <group>.</green>",
+                upgraded.messages.template(ResponseKey.GROUP_MEMBER_JOINED));
         assertEquals(oldConfig, Files.readString(configPath));
         assertEquals(oldMessages, Files.readString(messagesPath));
     }
@@ -124,6 +127,8 @@ class ConfigLoaderTest {
         assertEquals("tkchat.command.channel.others", Permissions.CHANNEL_OTHERS);
         assertEquals("tkchat.channel.staff_chat.receive", Permissions.channelReceive("Staff-Chat"));
         assertEquals("tkchat.bypass.private_groups", Permissions.BYPASS_PRIVATE_GROUPS);
+        assertEquals("tkchat.bypass.group_join_notifications",
+                Permissions.BYPASS_GROUP_JOIN_NOTIFICATIONS);
         assertEquals("tkchat.format.dark_blue", Permissions.format("dark-blue"));
     }
 }

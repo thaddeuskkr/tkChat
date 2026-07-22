@@ -252,6 +252,156 @@ class GroupCommandTest {
                 repository.groupInvitees(group.id(), Instant.now()).toCompletableFuture().join());
     }
 
+    @Test
+    void publicJoinNotifiesEveryOnlineExistingMember() throws Exception {
+        InMemorySocialRepository repository = new InMemorySocialRepository("global");
+        TestPlayer owner = player("Owner");
+        TestPlayer member = player("Member");
+        TestPlayer joining = player("Joining");
+        var group = repository.createGroup(
+                owner.id(), "Builders", GroupVisibility.PUBLIC, null)
+                .toCompletableFuture().join();
+        repository.joinGroup(member.id(), group.name(), null, false, Instant.now())
+                .toCompletableFuture().join();
+
+        ChannelRegistry channels = channels();
+        PlayerStateService states = loadedStates(repository, channels, joining);
+        ProxyServer proxy = proxy(List.of(owner.player(), member.player(), joining.player()));
+        GroupCommand command = command(
+                proxy, repository, states, channels, (player, permission) -> false);
+
+        command.execute(invocation(joining.player(), "group", "join", "Builders"));
+
+        assertEquals(List.of("tkChat » Joined Builders. [Switch channel]"),
+                plain(joining.messages()));
+        assertEquals(List.of("tkChat » Joining joined Builders."), plain(owner.messages()));
+        assertEquals(List.of("tkChat » Joining joined Builders."), plain(member.messages()));
+    }
+
+    @Test
+    void acceptingInviteNotifiesEveryOnlineExistingMember() throws Exception {
+        InMemorySocialRepository repository = new InMemorySocialRepository("global");
+        TestPlayer owner = player("Owner");
+        TestPlayer member = player("Member");
+        TestPlayer joining = player("Joining");
+        var group = repository.createGroup(
+                owner.id(), "Builders", GroupVisibility.PRIVATE, "secret-pass")
+                .toCompletableFuture().join();
+        repository.joinGroup(member.id(), group.name(), "secret-pass", false, Instant.now())
+                .toCompletableFuture().join();
+        repository.invite(
+                        group.id(), member.id(), joining.id(), Instant.now().plusSeconds(300))
+                .toCompletableFuture().join();
+
+        ChannelRegistry channels = channels();
+        PlayerStateService states = loadedStates(repository, channels, joining);
+        ProxyServer proxy = proxy(List.of(owner.player(), member.player(), joining.player()));
+        GroupCommand command = command(
+                proxy, repository, states, channels, (player, permission) -> false);
+
+        command.execute(invocation(joining.player(), "group", "accept", "Builders"));
+
+        assertEquals(List.of("tkChat » Joined Builders. [Switch channel]"),
+                plain(joining.messages()));
+        assertEquals(List.of("tkChat » Joining joined Builders."), plain(owner.messages()));
+        assertEquals(List.of("tkChat » Joining joined Builders."), plain(member.messages()));
+    }
+
+    @Test
+    void joinNotificationBypassMakesPublicJoinSilent() throws Exception {
+        InMemorySocialRepository repository = new InMemorySocialRepository("global");
+        TestPlayer owner = player("Owner");
+        TestPlayer joining = player("Admin");
+        repository.createGroup(owner.id(), "Builders", GroupVisibility.PUBLIC, null)
+                .toCompletableFuture().join();
+
+        ChannelRegistry channels = channels();
+        PlayerStateService states = loadedStates(repository, channels, joining);
+        ProxyServer proxy = proxy(List.of(owner.player(), joining.player()));
+        GroupCommand command = command(proxy, repository, states, channels,
+                (player, permission) -> permission.equals(
+                        Permissions.BYPASS_GROUP_JOIN_NOTIFICATIONS));
+
+        command.execute(invocation(joining.player(), "group", "join", "Builders"));
+
+        assertEquals(List.of("tkChat » Joined Builders. [Switch channel]"),
+                plain(joining.messages()));
+        assertEquals(List.of(), plain(owner.messages()));
+    }
+
+    @Test
+    void privateGroupBypassDoesNotSilencePublicJoin() throws Exception {
+        InMemorySocialRepository repository = new InMemorySocialRepository("global");
+        TestPlayer owner = player("Owner");
+        TestPlayer joining = player("Admin");
+        repository.createGroup(owner.id(), "Builders", GroupVisibility.PUBLIC, null)
+                .toCompletableFuture().join();
+
+        ChannelRegistry channels = channels();
+        PlayerStateService states = loadedStates(repository, channels, joining);
+        ProxyServer proxy = proxy(List.of(owner.player(), joining.player()));
+        GroupCommand command = command(proxy, repository, states, channels,
+                (player, permission) -> permission.equals(Permissions.BYPASS_PRIVATE_GROUPS));
+
+        command.execute(invocation(joining.player(), "group", "join", "Builders"));
+
+        assertEquals(List.of("tkChat » Admin joined Builders."), plain(owner.messages()));
+    }
+
+    @Test
+    void privateGroupBypassMakesPasswordlessJoinSilent() throws Exception {
+        InMemorySocialRepository repository = new InMemorySocialRepository("global");
+        TestPlayer owner = player("Owner");
+        TestPlayer joining = player("Admin");
+        repository.createGroup(
+                        owner.id(), "Builders", GroupVisibility.PRIVATE, "secret-pass")
+                .toCompletableFuture().join();
+
+        ChannelRegistry channels = channels();
+        PlayerStateService states = loadedStates(repository, channels, joining);
+        ProxyServer proxy = proxy(List.of(owner.player(), joining.player()));
+        GroupCommand command = command(proxy, repository, states, channels,
+                (player, permission) -> permission.equals(Permissions.BYPASS_PRIVATE_GROUPS));
+
+        command.execute(invocation(joining.player(), "group", "join", "Builders"));
+
+        assertEquals(List.of("tkChat » Joined Builders. [Switch channel]"),
+                plain(joining.messages()));
+        assertEquals(List.of(), plain(owner.messages()));
+    }
+
+    private ChannelRegistry channels() {
+        return new ChannelRegistry(List.of(new ChannelDefinition(
+                "global", "Global", ChannelScope.GLOBAL,
+                "tkchat.channel.global.send", "tkchat.channel.global.receive",
+                "tkchat.bypass.channel_restrictions", List.of("g"), "<message>")));
+    }
+
+    private PlayerStateService loadedStates(
+            InMemorySocialRepository repository,
+            ChannelRegistry channels,
+            TestPlayer player
+    ) {
+        PlayerStateService states = new PlayerStateService(repository, channels, "global");
+        states.activate(player.id());
+        states.load(player.id(), player.player().getUsername()).toCompletableFuture().join();
+        return states;
+    }
+
+    private GroupCommand command(
+            ProxyServer proxy,
+            SocialRepository repository,
+            PlayerStateService states,
+            ChannelRegistry channels,
+            java.util.function.BiPredicate<Player, String> hasPermission
+    ) throws Exception {
+        AppConfig config = new ConfigLoader().load(directory);
+        ResponseService responses = new ResponseService(
+                config.formats.responsePrefix, config.messages);
+        return new GroupCommand(
+                proxy, repository, null, states, channels, hasPermission, responses);
+    }
+
     private static TestPlayer player(String username) {
         UUID id = UUID.randomUUID();
         ArrayList<Component> messages = new ArrayList<>();

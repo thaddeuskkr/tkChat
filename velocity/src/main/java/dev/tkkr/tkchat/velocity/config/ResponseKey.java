@@ -86,6 +86,7 @@ public enum ResponseKey {
     GROUP_INVITE_MEMBERS_UNAVAILABLE("group.invite-members-unavailable"),
     GROUP_ACCEPT_USAGE("group.accept-usage"),
     GROUP_JOINED("group.joined"),
+    GROUP_MEMBER_JOINED("group.member-joined"),
     GROUP_DISBAND_NOTICE("group.disband-notice"),
     GROUP_DISBANDED("group.disbanded"),
     GROUP_LEFT("group.left"),

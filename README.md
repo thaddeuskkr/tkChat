@@ -165,6 +165,7 @@ lowercase, so the documented form is `tkchat` even though the plugin name is sty
 | `tkchat.bypass.ratelimit` | Ignore the chat rate limit |
 | `tkchat.bypass.links` | Include clickable URLs |
 | `tkchat.bypass.private_groups` | Join private groups without an invite or password |
+| `tkchat.bypass.group_join_notifications` | Join groups without notifying their members |
 | `tkchat.bypass.channel_restrictions` | Ignore channel and group send/receive restrictions |
 | `tkchat.bypass.chat_clear` | Keep chat history when `/clearchat` is used |
 
@@ -253,9 +254,10 @@ gamemode, region, and other backend-only contexts are not inferred by the proxy 
 - `/group create <name> [password]` (no password creates a public group; providing one creates a private group)
 - `/group list` (list public groups and their owners; `tkchat.bypass.private_groups` also reveals
   private groups and their visibility)
-- `/group join <name> [password]`
+- `/group join <name> [password]` (notifies all online members when the player joins)
 - `/group invite <player>` (any member can invite; the invite includes the current members)
-- `/group accept <name>` (invite messages include a clickable accept button)
+- `/group accept <name>` (invite messages include a clickable accept button and joining notifies
+  all online members)
 - `/group leave`
 - `/group chat <message>`
 - `/groupchat [message]` (`/gc`, `/pc`); an omitted message switches to the group channel
@@ -269,6 +271,10 @@ Full root-command examples include `/tkchat channel global`, `/tkchat channel g`
 `/tkchat local [message]`, `/tkchat message <player> <message>`, `/tkchat me <action>`,
 `/tkchat broadcast <message>`, and `/tkchat clearchat <channel>`. Standalone commands and their
 aliases remain available when another plugin has not claimed them.
+
+Group join notices are sent to the group's currently online members. Grant
+`tkchat.bypass.group_join_notifications` for silent joins. A private-group join made through
+`tkchat.bypass.private_groups` is also silent.
 
 Reloading applies channels, channel command aliases, the default channel, chat limits and rate
 limits, formats (including the response prefix), `messages.yml`, mentions, item links, clear-chat

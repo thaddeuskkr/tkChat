@@ -99,6 +99,7 @@ group:
   invite-members-unavailable: '<gray>Current members are temporarily unavailable.</gray>'
   accept-usage: '<red>Usage: /group accept <name></red>'
   joined: '<green>Joined <group>.</green> <button>'
+  member-joined: '<green><player> joined <group>.</green>'
   disband-notice: '<yellow>Group <group> was disbanded.</yellow>'
   disbanded: '<green>Disbanded <group>.</green>'
   left: '<green>You left <group>.</green>'
