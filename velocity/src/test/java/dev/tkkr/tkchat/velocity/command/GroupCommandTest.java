@@ -196,15 +196,15 @@ class GroupCommandTest {
     @Test
     void inviteShowsTheCurrentAcceptedMembersWithOneBatchedNameLookup() throws Exception {
         InMemorySocialRepository repository = new InMemorySocialRepository("global");
-        TestPlayer owner = player("Owner");
+        UUID ownerId = UUID.randomUUID();
+        TestPlayer inviter = player("Member");
         TestPlayer target = player("Target");
-        UUID memberId = UUID.randomUUID();
         var group = repository.createGroup(
-                owner.id(), "Builders", GroupVisibility.PUBLIC, null)
+                ownerId, "Builders", GroupVisibility.PUBLIC, null)
                 .toCompletableFuture().join();
-        repository.joinGroup(memberId, group.name(), null, false, Instant.now())
+        repository.joinGroup(inviter.id(), group.name(), null, false, Instant.now())
                 .toCompletableFuture().join();
-        repository.recordPlayerName(memberId, "Member").toCompletableFuture().join();
+        repository.recordPlayerName(ownerId, "Owner").toCompletableFuture().join();
 
         AtomicInteger nameLookups = new AtomicInteger();
         SocialRepository countedRepository = (SocialRepository) Proxy.newProxyInstance(
@@ -225,9 +225,9 @@ class GroupCommandTest {
                 "tkchat.channel.global.send", "tkchat.channel.global.receive",
                 "tkchat.bypass.channel_restrictions", List.of("g"), "<message>")));
         PlayerStateService states = new PlayerStateService(repository, channels, "global");
-        states.activate(owner.id());
-        states.load(owner.id(), owner.player().getUsername()).toCompletableFuture().join();
-        ProxyServer proxy = proxy(List.of(owner.player(), target.player()));
+        states.activate(inviter.id());
+        states.load(inviter.id(), inviter.player().getUsername()).toCompletableFuture().join();
+        ProxyServer proxy = proxy(List.of(inviter.player(), target.player()));
         AppConfig config = new ConfigLoader().load(directory);
         ResponseService responses = new ResponseService(
                 config.formats.responsePrefix, config.messages);
@@ -236,16 +236,16 @@ class GroupCommandTest {
                 (player, permission) -> false,
                 responses);
 
-        command.execute(invocation(owner.player(), "group", "invite", "Target"));
+        command.execute(invocation(inviter.player(), "group", "invite", "Target"));
 
-        assertEquals(List.of("tkChat » Invited Target."), plain(owner.messages()));
+        assertEquals(List.of("tkChat » Invited Target."), plain(inviter.messages()));
         assertEquals(List.of(
-                "tkChat » Owner invited you to Builders. [Accept]",
-                "tkChat » Current members: Owner, Member (offline)"),
+                "tkChat » Member invited you to Builders. [Accept]",
+                "tkChat » Current members: Owner (offline), Member"),
                 plain(target.messages()));
-        assertEquals(NamedTextColor.WHITE,
-                textColor(target.messages().get(1), "Owner", null).orElseThrow());
         assertEquals(NamedTextColor.GRAY,
+                textColor(target.messages().get(1), "Owner", null).orElseThrow());
+        assertEquals(NamedTextColor.WHITE,
                 textColor(target.messages().get(1), "Member", null).orElseThrow());
         assertEquals(1, nameLookups.get());
         assertEquals(java.util.Set.of(target.id()),

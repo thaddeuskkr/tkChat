@@ -183,12 +183,11 @@ public final class InMemorySocialRepository implements SocialRepository {
             UUID groupId,
             UUID inviterId,
             UUID invitedId,
-            Instant expiresAt
+        Instant expiresAt
     ) {
         GroupMembership inviter = memberships.get(inviterId);
-        if (inviter == null || !inviter.group().id().equals(groupId)
-                || inviter.role() != GroupRole.OWNER) {
-            return failed(GroupFailure.NOT_OWNER, "Only the group owner can invite players");
+        if (inviter == null || !inviter.group().id().equals(groupId)) {
+            return failed(GroupFailure.NOT_MEMBER, "Inviter is not a member of that group");
         }
         if (memberships.containsKey(invitedId)) {
             return failed(GroupFailure.ALREADY_MEMBER, "That player is already in a group");

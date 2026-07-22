@@ -352,8 +352,8 @@ public final class GroupCommand implements SimpleCommand {
             return;
         }
         repository.groupForMember(player.getUniqueId()).thenCompose(membership -> {
-            if (membership.isEmpty() || membership.get().role() != GroupRole.OWNER) {
-                throw new GroupException(GroupFailure.NOT_OWNER, "Only the group owner can invite players");
+            if (membership.isEmpty()) {
+                throw new GroupException(GroupFailure.NOT_MEMBER, "Inviter is not in a group");
             }
             Group group = membership.get().group();
             return repository.invite(group.id(), player.getUniqueId(), target.getUniqueId(),

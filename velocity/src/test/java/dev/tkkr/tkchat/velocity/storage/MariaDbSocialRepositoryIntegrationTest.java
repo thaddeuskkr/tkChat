@@ -103,6 +103,7 @@ class MariaDbSocialRepositoryIntegrationTest {
         UUID member = UUID.randomUUID();
         UUID duplicateNameOwner = UUID.randomUUID();
         UUID expiredInvitee = UUID.randomUUID();
+        UUID memberInvitee = UUID.randomUUID();
         var group = repository.createGroup(
                 owner, "PrivateTeam", GroupVisibility.PRIVATE, "correct-horse")
                 .toCompletableFuture().join();
@@ -143,6 +144,10 @@ class MariaDbSocialRepositoryIntegrationTest {
                 .toCompletableFuture().join();
         assertEquals(java.util.Set.of(), repository.groupInvitees(group.id(), Instant.now())
                 .toCompletableFuture().join());
+        repository.invite(group.id(), member, memberInvitee, Instant.now().plusSeconds(60))
+                .toCompletableFuture().join();
+        assertEquals(java.util.Set.of(memberInvitee),
+                repository.groupInvitees(group.id(), Instant.now()).toCompletableFuture().join());
         repository.setActiveChannel(owner, GroupChannels.id(group.id())).toCompletableFuture().join();
         repository.setActiveChannel(member, GroupChannels.id(group.id())).toCompletableFuture().join();
 

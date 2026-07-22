@@ -254,7 +254,7 @@ gamemode, region, and other backend-only contexts are not inferred by the proxy 
 - `/group list` (list public groups and their owners; `tkchat.bypass.private_groups` also reveals
   private groups and their visibility)
 - `/group join <name> [password]`
-- `/group invite <player>` (the invite includes the group's current members)
+- `/group invite <player>` (any member can invite; the invite includes the current members)
 - `/group accept <name>` (invite messages include a clickable accept button)
 - `/group leave`
 - `/group chat <message>`

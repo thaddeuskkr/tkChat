@@ -479,9 +479,9 @@ public final class MariaDbSocialRepository implements SocialRepository {
     ) {
         return run(() -> transaction(connection -> {
             lockPlayer(connection, invitedId);
-            StoredGroup group = findStoredGroupById(connection, groupId, true);
-            if (group == null || !group.group().ownerId().equals(inviterId)) {
-                throw failure(GroupFailure.NOT_OWNER, "Only the group owner can invite players");
+            Optional<GroupMembership> inviter = findMembership(connection, inviterId, true);
+            if (inviter.isEmpty() || !inviter.get().group().id().equals(groupId)) {
+                throw failure(GroupFailure.NOT_MEMBER, "Inviter is not a member of that group");
             }
             if (findMembership(connection, invitedId, true).isPresent()) {
                 throw failure(GroupFailure.ALREADY_MEMBER, "That player is already in a group");
