@@ -251,9 +251,10 @@ gamemode, region, and other backend-only contexts are not inferred by the proxy 
 - `/me <action>`; sends to the active channel and uses `formats.me`
 - `/group` (show the current group's owner, visibility, members, and pending invitees)
 - `/group create <name> [password]` (no password creates a public group; providing one creates a private group)
-- `/group list`
+- `/group list` (list public groups and their owners; `tkchat.bypass.private_groups` also reveals
+  private groups and their visibility)
 - `/group join <name> [password]`
-- `/group invite <player>`
+- `/group invite <player>` (the invite includes the group's current members)
 - `/group accept <name>` (invite messages include a clickable accept button)
 - `/group leave`
 - `/group chat <message>`

@@ -48,6 +48,9 @@ public final class GroupCommand implements SimpleCommand {
     private record GroupStatus(Group group, NamedMember owner, List<NamedMember> members) {
     }
 
+    private record ListedGroup(Group group, NamedMember owner) {
+    }
+
     private final ProxyServer proxy;
     private final SocialRepository repository;
     private final VelocityChatService chat;
@@ -155,23 +158,47 @@ public final class GroupCommand implements SimpleCommand {
         return repository.playerNames(Set.copyOf(ids)).thenApply(names -> {
             Comparator<NamedMember> byName = Comparator.comparing(
                     NamedMember::name, String.CASE_INSENSITIVE_ORDER);
-            List<NamedMember> accepted = roster.members().stream()
-                    .filter(id -> !id.equals(roster.group().ownerId()))
-                    .map(id -> namedMember(id, names, false))
-                    .sorted(byName)
-                    .toList();
+            List<NamedMember> accepted = orderedMembers(
+                    roster.group(), roster.members(), names);
             List<NamedMember> invited = roster.invitees().stream()
                     .filter(id -> !roster.members().contains(id))
                     .map(id -> namedMember(id, names, true))
                     .sorted(byName)
                     .toList();
-            NamedMember owner = namedMember(roster.group().ownerId(), names, false);
-            List<NamedMember> displayed = new ArrayList<>(1 + accepted.size() + invited.size());
-            displayed.add(owner);
+            NamedMember owner = accepted.getFirst();
+            List<NamedMember> displayed = new ArrayList<>(accepted.size() + invited.size());
             displayed.addAll(accepted);
             displayed.addAll(invited);
             return new GroupStatus(roster.group(), owner, List.copyOf(displayed));
         });
+    }
+
+    private CompletionStage<List<NamedMember>> resolveCurrentMembers(Group group) {
+        return repository.groupMembers(group.id()).thenCompose(members -> {
+            LinkedHashSet<UUID> ids = new LinkedHashSet<>();
+            ids.add(group.ownerId());
+            ids.addAll(members);
+            return repository.playerNames(Set.copyOf(ids))
+                    .thenApply(names -> orderedMembers(group, members, names));
+        });
+    }
+
+    private List<NamedMember> orderedMembers(
+            Group group,
+            Set<UUID> members,
+            Map<UUID, String> names
+    ) {
+        Comparator<NamedMember> byName = Comparator.comparing(
+                NamedMember::name, String.CASE_INSENSITIVE_ORDER);
+        List<NamedMember> others = members.stream()
+                .filter(id -> !id.equals(group.ownerId()))
+                .map(id -> namedMember(id, names, false))
+                .sorted(byName)
+                .toList();
+        ArrayList<NamedMember> ordered = new ArrayList<>(1 + others.size());
+        ordered.add(namedMember(group.ownerId(), names, false));
+        ordered.addAll(others);
+        return List.copyOf(ordered);
     }
 
     private NamedMember namedMember(
@@ -257,24 +284,50 @@ public final class GroupCommand implements SimpleCommand {
 
     private void list(Player player) {
         boolean includePrivate = isGroupAdmin(player);
-        repository.listGroups(includePrivate).whenComplete((groups, error) -> {
-            if (error != null) {
-                player.sendMessage(responses.message(ResponseKey.GROUP_STORAGE_UNAVAILABLE));
-                return;
-            }
-            if (groups.isEmpty()) {
-                player.sendMessage(responses.message(ResponseKey.GROUP_LIST_EMPTY));
-                return;
-            }
-            player.sendMessage(responses.message(includePrivate
-                    ? ResponseKey.GROUP_LIST_HEADING_ALL
-                    : ResponseKey.GROUP_LIST_HEADING_PUBLIC));
-            groups.forEach(group -> player.sendMessage(responses.message(
-                    ResponseKey.GROUP_LIST_ENTRY,
-                    ResponseService.text("group", group.name()),
-                    ResponseService.text("visibility", group.visibility().name().toLowerCase(Locale.ROOT)),
-                    ResponseService.component("button", joinButton(group, includePrivate)))));
-        });
+        repository.listGroups(includePrivate)
+                .thenCompose(this::resolveGroupOwners)
+                .whenComplete((groups, error) -> {
+                    if (error != null) {
+                        player.sendMessage(responses.message(ResponseKey.GROUP_STORAGE_UNAVAILABLE));
+                        return;
+                    }
+                    if (groups.isEmpty()) {
+                        player.sendMessage(responses.message(ResponseKey.GROUP_LIST_EMPTY));
+                        return;
+                    }
+                    player.sendMessage(responses.message(includePrivate
+                            ? ResponseKey.GROUP_LIST_HEADING_ALL
+                            : ResponseKey.GROUP_LIST_HEADING_PUBLIC));
+                    groups.forEach(listed -> {
+                        Group group = listed.group();
+                        Component ownerAndButton = responses.content(
+                                        ResponseKey.GROUP_LIST_OWNER,
+                                        ResponseService.component(
+                                                "owner", playerComponent(listed.owner())))
+                                .append(joinButton(group, includePrivate));
+                        player.sendMessage(responses.message(
+                                includePrivate
+                                        ? ResponseKey.GROUP_LIST_ENTRY
+                                        : ResponseKey.GROUP_LIST_PUBLIC_ENTRY,
+                                ResponseService.text("group", group.name()),
+                                ResponseService.text("visibility",
+                                        group.visibility().name().toLowerCase(Locale.ROOT)),
+                                ResponseService.component("button", ownerAndButton)));
+                    });
+                });
+    }
+
+    private CompletionStage<List<ListedGroup>> resolveGroupOwners(List<Group> groups) {
+        if (groups.isEmpty()) {
+            return CompletableFuture.completedFuture(List.of());
+        }
+        Set<UUID> ownerIds = groups.stream()
+                .map(Group::ownerId)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        return repository.playerNames(ownerIds).thenApply(names -> groups.stream()
+                .map(group -> new ListedGroup(
+                        group, namedMember(group.ownerId(), names, false)))
+                .toList());
     }
 
     private void join(Player player, String[] args) {
@@ -314,10 +367,24 @@ public final class GroupCommand implements SimpleCommand {
                                 ResponseService.text("player", player.getUsername()),
                                 ResponseService.text("group", group.name()),
                                 ResponseService.component("button", acceptButton(group))));
+                        sendInviteMembers(target, group);
                     });
         }).exceptionally(error -> {
             sendFailure(player, error);
             return null;
+        });
+    }
+
+    private void sendInviteMembers(Player target, Group group) {
+        resolveCurrentMembers(group).whenComplete((members, error) -> {
+            if (error != null) {
+                target.sendMessage(responses.message(
+                        ResponseKey.GROUP_INVITE_MEMBERS_UNAVAILABLE));
+                return;
+            }
+            target.sendMessage(responses.message(
+                    ResponseKey.GROUP_INVITE_MEMBERS,
+                    ResponseService.component("members", rosterComponent(members))));
         });
     }
 

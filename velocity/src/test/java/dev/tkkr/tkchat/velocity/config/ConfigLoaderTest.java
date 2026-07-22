@@ -47,6 +47,7 @@ class ConfigLoaderTest {
         assertTrue(messages.contains("no-permission:"));
         assertTrue(messages.contains("Usage: /me <action>"));
         assertTrue(messages.contains("invite-received:"));
+        assertTrue(messages.contains("invite-members:"));
         assertEquals("<red>Invalid command</red>",
                 config.messages.template(ResponseKey.ROOT_UNKNOWN));
     }
@@ -75,7 +76,11 @@ class ConfigLoaderTest {
                 .replace("  status-owner: '<gray>Owner: <owner></gray>'\n", "")
                 .replace("  status-members: '<gray>Members: <members></gray>'\n", "")
                 .replace("  status-invited-tag: '<dark_gray> [invited]</dark_gray>'\n", "")
-                .replace("  status-offline-tag: '<dark_gray> (offline)</dark_gray>'\n", "");
+                .replace("  status-offline-tag: '<dark_gray> (offline)</dark_gray>'\n", "")
+                .replace("  list-public-entry: '<dark_gray> • </dark_gray><aqua><group></aqua> <button>'\n", "")
+                .replace("  list-owner: '<dark_gray>· Owner:</dark_gray> <owner> '\n", "")
+                .replace("  invite-members: '<gray>Current members: <members></gray>'\n", "")
+                .replace("  invite-members-unavailable: '<gray>Current members are temporarily unavailable.</gray>'\n", "");
         Files.writeString(messagesPath, oldMessages);
 
         AppConfig upgraded = new ConfigLoader().load(directory);
@@ -96,6 +101,19 @@ class ConfigLoaderTest {
                 upgraded.messages.template(ResponseKey.GROUP_STATUS_INVITED_TAG));
         assertEquals("<dark_gray> (offline)</dark_gray>",
                 upgraded.messages.template(ResponseKey.GROUP_STATUS_OFFLINE_TAG));
+        assertEquals("<dark_gray> • </dark_gray><aqua><group></aqua> <button>",
+                upgraded.messages.template(ResponseKey.GROUP_LIST_PUBLIC_ENTRY));
+        assertEquals("<gray>Groups:</gray>",
+                upgraded.messages.template(ResponseKey.GROUP_LIST_HEADING_ALL));
+        assertEquals("<dark_gray> • </dark_gray><aqua><group></aqua> "
+                        + "<dark_gray>(<visibility>)</dark_gray> <button>",
+                upgraded.messages.template(ResponseKey.GROUP_LIST_ENTRY));
+        assertEquals("<dark_gray>· Owner:</dark_gray> <owner> ",
+                upgraded.messages.template(ResponseKey.GROUP_LIST_OWNER));
+        assertEquals("<gray>Current members: <members></gray>",
+                upgraded.messages.template(ResponseKey.GROUP_INVITE_MEMBERS));
+        assertEquals("<gray>Current members are temporarily unavailable.</gray>",
+                upgraded.messages.template(ResponseKey.GROUP_INVITE_MEMBERS_UNAVAILABLE));
         assertEquals(oldConfig, Files.readString(configPath));
         assertEquals(oldMessages, Files.readString(messagesPath));
     }
