@@ -174,6 +174,11 @@ public final class PlayerLifecycleListener {
     public void onDisconnect(DisconnectEvent event) {
         Player player = event.getPlayer();
         UUID playerId = player.getUniqueId();
+        Player currentPlayer = proxy.getPlayer(playerId).orElse(null);
+        // A replacement connection with the same UUID owns all UUID-keyed chat state.
+        if (currentPlayer != null && currentPlayer != player) {
+            return;
+        }
         ConnectedPlayer connected = connectedPlayers.get(playerId);
         if (connected != null && connected.player() == player
                 && connectedPlayers.remove(playerId, connected)) {
