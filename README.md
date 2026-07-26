@@ -310,6 +310,8 @@ offline without relying on LuckPerms' user cache; offline roster entries are mar
   `<channel>`), and `<message>`.
 - Case-insensitive `@Username` mentions can highlight the recipient's name and play a configurable
   sound. Mention styling and sound settings live under `mentions`.
+- Every approved channel, group, direct, action, and broadcast message is logged once on its
+  originating Velocity console. RabbitMQ fan-out does not duplicate the log on receiving proxies.
 - `<item>` and `[item]` link the sender's main-hand item. The Velocity plugin asks the Paper or
   Fabric bridge for its identifier, amount, and display name, then renders a hoverable
   item component. Placeholders, visible format, and timeout are configurable under `item-links`.

@@ -200,7 +200,7 @@ public final class TkChatPlugin {
             ChatRouter router = new ChatRouter(
                     channels, access, states, config.policy(), Clock.systemUTC(),
                     Permissions.BYPASS_CHANNEL_RESTRICTIONS);
-            transport = createTransport(config);
+            transport = new LoggingMessageTransport(createTransport(config), logger);
             spies = new SocialSpyService();
             PlayerFormattingService formatting = new PlayerFormattingService();
             delivery = new VelocityDeliveryService(
