@@ -1,201 +1,157 @@
 # tkChat
 
-tkChat is a Velocity-led Minecraft network chat system for Paper and Fabric servers. Velocity is
-the trust boundary: it checks LuckPerms and LibertyBans before routing global channels, server-local
-chat, groups, and direct messages. MariaDB stores social state and player preferences. RabbitMQ is
-available for multi-proxy fan-out, but is disabled by default for a single Velocity process.
+tkChat is a Velocity-led chat system for Paper, Purpur, and Fabric networks. It provides global and
+server-local chat, groups, direct messages, configurable formatting, LuckPerms permissions, and
+LibertyBans mute enforcement from one proxy plugin.
 
-This repository targets every Java Edition release from Minecraft 1.21 through 26.2. It produces:
+## Features
 
-- One Velocity 4.1 plugin (Java 25)
-- Paper 1.21.x, 26.1.x, and 26.2 plugins
-- Fabric 1.21.x and 26.1.x family mods, plus an exact-version Fabric 26.2 mod
+- Configurable global and server-local channels, plus one-off sends without changing channel
+- Persistent public/private groups, group invitations, direct messages, replies, ignores, and social spy
+- MiniMessage formats, LuckPerms prefixes/suffixes, clickable links, mentions, item links, and coordinates
+- Network broadcasts, channel-aware chat clearing, `/me`, and configurable player notifications
+- MariaDB-backed social state and optional RabbitMQ fan-out for multi-proxy networks
 
-## Architecture
-
-1. A player sends chat or a tkChat command through Velocity.
-2. Velocity evaluates the correct LuckPerms `server` context, link bypass, rate limit, and
-   LibertyBans mute cache.
-3. Every approved message, including server-local chat, is cancelled in the vanilla pipeline and
-   rendered by Velocity as a server-authored message. This gives every channel the same client
-   behavior and avoids reportability/signature indicators changing after a backend switch.
-4. A single proxy delivers locally; multi-proxy deployments use RabbitMQ so each Velocity instance
-   can deliver to its eligible local recipients.
-5. Player input is always inserted as a literal Adventure component. MiniMessage is parsed only
-   for administrator-controlled formats and LuckPerms metadata.
-
-Messages are visually normal chat but are intentionally server-authored and cannot be reported
-through Mojang's signed-chat reporting interface. Velocity still authenticates the sender,
-evaluates permissions and mutes, and inserts player input only as literal text.
+Messages are rendered as server-authored chat. They look like normal chat but cannot be reported through
+Mojang's signed-chat reporting interface.
 
 ## Requirements
 
-- Velocity 4.1 on Java 25+
-- SignedVelocity on Velocity and every Paper/Fabric backend
-- Velocity player-info forwarding configured for production. Fabric needs a compatible forwarding
-  solution; SignedVelocity synchronizes chat decisions but does not forward player identities.
-- LuckPerms and LibertyBans on Velocity
-- MariaDB 10.6+ (enabled by default)
-- RabbitMQ (optional; only needed when multiple Velocity processes must fan out chat)
-- Java 21 for Minecraft 1.21.x and Java 25 for Minecraft 26.x
+- Velocity 4.1 running Java 25 or newer
+- SignedVelocity on Velocity and every backend
+- LuckPerms and LibertyBans on Velocity; neither is required on the backends
+- MariaDB 10.6 or newer by default
+- Correct Velocity player-info forwarding for production networks
+- RabbitMQ only when chat must fan out across multiple Velocity processes
 
-The Minecraft 1.21.x Fabric artifact accepts Fabric Loader 0.15.11 and newer. The matching Fabric
-API may require a newer loader on later 1.21.x releases; for example, the tested 1.21.11 API requires
-Loader 0.17.3. The Minecraft 26.1.x and 26.2 artifacts accept Fabric Loader 0.19.0 and newer. The
-current SignedVelocity builds for Minecraft 26.x require Loader 0.19.3, so complete installations
-using those builds retain that effective minimum. Newer compatible API and loader versions remain
-valid.
+Fabric backends also need Fabric API and FabricProxy-Lite. SignedVelocity synchronizes chat decisions;
+it does not forward player identities, so configure FabricProxy-Lite with the same modern-forwarding
+secret as Velocity.
 
-LuckPerms and LibertyBans are not required on backend servers. The backend artifacts intentionally
-contain no moderation or routing authority.
+| Backend | tkChat artifact | Java | Additional requirement |
+| --- | --- | --- | --- |
+| Paper/Purpur 1.21-1.21.11 | `tkChat-Paper-1.21.x-<version>.jar` | 21+ | Paper-compatible server |
+| Paper/Purpur 26.1.1-26.1.2 | `tkChat-Paper-26.1.x-<version>.jar` | 25+ | There was no upstream Paper 26.1 build |
+| Paper/Purpur 26.2 | `tkChat-Paper-26.2-<version>.jar` | 25+ | Paper-compatible server |
+| Fabric 1.21-1.21.11 | `tkChat-Fabric-1.21.x-<version>.jar` | 21+ | Fabric Loader 0.15.11+ and a matching Fabric API |
+| Fabric 26.1-26.1.2 | `tkChat-Fabric-26.1.x-<version>.jar` | 25+ | Fabric Loader 0.19.0+ and a matching Fabric API |
+| Fabric 26.2 | `tkChat-Fabric-26.2-<version>.jar` | 25+ | Fabric Loader 0.19.0+ and a matching Fabric API |
 
-## Build
-
-The Gradle wrapper provisions the required toolchains automatically:
-
-```bash
-./gradlew :core:test :velocity:shadowJar :paper-1.21:jar :paper-26.1:jar :paper-26.2:jar
-```
-
-Build a particular Fabric artifact:
-
-```bash
-./gradlew :fabric-1-21:remapJar
-./gradlew :fabric-26-1:jar
-./gradlew :fabric-26-2:jar
-```
-
-Build every release artifact with `./gradlew releaseArtifacts`. Release jars are written under the
-plugin-version folder, such as `build/releases/<version>/`, and include the plugin version in each jar
-name, such as `tkChat-Velocity-<version>.jar`.
-The three Paper family jars share one implementation. The 1.21.x jar is compiled against Paper
-1.21, the 26.1.x jar against Paper 26.1.1, and the 26.2 jar against Paper 26.2. Compiling against
-the oldest published API in each family prevents accidental use of methods that are unavailable on
-an earlier patch release. The test suite also compiles the shared bridge against every published
-Paper 1.21 API from 1.21 through 1.21.11; Paper did not publish a 1.21.2 API/server build.
-Fabric 1.21 through 1.21.11 share one remapped jar. All twelve former per-version builds produced
-the same runtime class and method references; their only meaningful jar difference was the exact
-Minecraft version in `fabric.mod.json`. The family jar lists all twelve supported versions there.
-Fabric 26.1 through 26.1.2 likewise share one jar compiled against 26.1 and the lowest supported
-Fabric API. The three former exact-version jars contained identical runtime classes, so the family
-jar bounds its metadata to the three versions that were verified rather than claiming future 26.1
-patches automatically.
-Fabric 26.x tasks require Gradle itself to run on Java 25; use `JAVA_HOME` for a Java 25 installation
-when invoking the complete matrix.
-
-## Modrinth publishing
-
-Publishing is automated by `.github/workflows/publish-modrinth.yml`. When a push to `main` changes
-`projectVersion`, the workflow verifies the new version, builds and tests the complete matrix,
-creates the matching GitHub tag and release (for example, `v<version>`), attaches all 7 jars, and then
-publishes every Velocity, Paper, and Fabric artifact to Modrinth. No GitHub release needs to be
-created manually.
-
-The release notes are generated from the commit subjects since the previous version tag. Every
-entry includes its short commit SHA linked to the commit, followed by a link to the full diff. The
-first release includes the complete commit history because no earlier tag exists. The exact same
-Markdown is used for the GitHub release and every Modrinth version entry. Modrinth entries use
-platform-specific identifiers so each jar retains the correct loader, Minecraft version, and
-dependency metadata.
-
-Configure these values in the repository's `modrinth` GitHub environment before the first run:
-
-- Secret `MODRINTH_TOKEN`: a Modrinth personal access token with `CREATE_VERSION` permission.
-- Variable `MODRINTH_PROJECT_ID`: the Modrinth project ID or slug.
-
-For a local publication, set `MODRINTH_TOKEN` and `MODRINTH_PROJECT_ID`, then run
-`./gradlew publishModrinth --no-parallel --no-configuration-cache`.
-
-`projectVersion` in `gradle.properties` is the release version source of truth. Bump it for runtime,
-configuration, compatibility, or artifact changes; documentation and release-workflow-only changes
-do not require a new plugin version. Gradle writes that value into Velocity's generated plugin
-metadata, and `/tkchat` reads it from the metadata at runtime; no Java version constant needs to be
-updated manually.
-
-## Live integration verification
-
-The gameplay and single-proxy transport path was exercised on July 20, 2026 using two authenticated Prism Launcher
-clients, Velocity 4.1.0-SNAPSHOT build 9, two Fabric 26.2 backends, Fabric API 0.155.2+26.2,
-FabricProxy-Lite 2.12.0, the local SignedVelocity 1.4.2-SNAPSHOT proxy/Fabric artifacts,
-LibertyBans 1.2.0-M1-SNAPSHOT. RabbitMQ was disabled.
-
-The controlled run verified global chat in both directions between different backends, local-chat
-server isolation, direct messages and replies, group create/invite/accept/chat across backends,
-and LibertyBans mute rejection. FabricProxy-Lite was
-first run with its default configuration to generate `config/FabricProxy-Lite.toml`; both backends
-then used Velocity modern forwarding with the same generated forwarding secret,
-`hackOnlineMode = true`, and `hackMessageChain = true`. Both clients retained their forwarded
-Mojang identities, switched backends without a public-key or message-chain rejection, and rendered
-the local route only on the correct backend after the switch. Persistent records used the
-forwarded Mojang UUIDs. All current channel deliveries are intentionally rendered as server-authored
-messages. The MariaDB repository has separate live integration coverage for schema creation, complete
-login snapshots, password and invitation rules, atomic disband cleanup, and concurrent membership
-constraints.
+Some SignedVelocity 26.x builds require Fabric Loader 0.19.3, which then becomes the effective minimum.
 
 ## Installation
 
-1. Put `tkChat-Velocity-<version>.jar` on Velocity.
-2. Put the matching Paper-family, Fabric family, or exact-version Fabric 26.2 artifact on
-   every backend.
-3. Keep SignedVelocity installed on the proxy and all backends.
-4. Start Velocity once to generate `plugins/tkchat/config.yml`.
-5. Configure MariaDB in `mariadb`, preferably by supplying credentials through
+1. Download the release from Modrinth or [GitHub Releases](https://github.com/thaddeuskkr/tkChat/releases).
+2. Put `tkChat-Velocity-<version>.jar` and SignedVelocity in Velocity's `plugins` directory.
+3. Put the matching tkChat backend artifact and SignedVelocity on every Paper/Purpur or Fabric backend.
+4. On Fabric, also install Fabric API and FabricProxy-Lite and configure modern forwarding.
+5. Install LuckPerms and LibertyBans on Velocity.
+6. Start Velocity once to generate `plugins/tkchat/config.yml` and `plugins/tkchat/messages.yml`.
+7. Configure the `mariadb` section. Credentials can instead be supplied with
    `TKCHAT_MARIADB_URL`, `TKCHAT_MARIADB_USERNAME`, and `TKCHAT_MARIADB_PASSWORD`.
-6. Leave RabbitMQ disabled for one Velocity process, or configure a unique `instance-id` and
-   RabbitMQ URI for a multi-proxy network.
-7. Restart Velocity. The required InnoDB tables, keys, and indexes are created automatically.
+8. Restart Velocity. tkChat creates its InnoDB tables, keys, and indexes automatically.
 
-Use a unique RabbitMQ `instance-id` per Velocity process. Each instance receives its own queue;
-sharing a queue name would load-balance messages instead of broadcasting them.
+RabbitMQ is disabled by default and is unnecessary for a single Velocity process. For multiple proxies,
+enable it, set `TKCHAT_RABBITMQ_URI` or `rabbitmq.uri`, and give every proxy a unique `instance-id`.
+Sharing an instance ID causes messages to be load-balanced instead of delivered to every proxy.
+
+`/tkchat reload` reloads channels, aliases, formats, messages, chat limits, mentions, item links,
+coordinates, notifications, and moderation settings. Changes to `instance-id`, `mariadb`, or `rabbitmq`
+require a Velocity restart.
+
+## Commands
+
+Every command is also available below the stable `/tkchat` root. For example, `/msg Steve hello`
+can be run as `/tkchat message Steve hello`. Configured short channel aliases such as `/g` remain
+standalone commands and are not `/tkchat` subcommands.
+
+| Command and arguments | Aliases | Purpose |
+| --- | --- | --- |
+| `/tkchat` | - | Show the running version |
+| `/tkchat help [command]` | - | Show commands available to the sender or detailed command help |
+| `/tkchat reload` | - | Reload the Velocity configuration |
+| `/channel [channel] [player]` | `/ch` | View or change an active channel; `player` targets another online player |
+| `/<channel> [message]` | Configured per channel, such as `/g` and `/l` | Switch channel, or send once when `message` is supplied |
+| `/msg <player> <message>` | `/tell`, `/w`, `/message` | Send a direct message |
+| `/reply <message>` | `/r` | Reply to the last direct-message conversation |
+| `/me <action>` | - | Send an action to the active channel |
+| `/group` | `/party` | Show the current group, members, owner, visibility, and pending invitations |
+| `/groupchat [message]` | `/gc`, `/pc` | Switch to group chat, or send once when `message` is supplied |
+| `/ignore <player>` | `/block` | Toggle ignoring a player |
+| `/dmtoggle` | - | Toggle incoming direct messages |
+| `/broadcast <message>` | `/bc` | Broadcast across the network |
+| `/clearchat <channel>` | - | Clear chat for a channel; channel aliases are accepted |
+| `/socialspy [on\|off]` | `/spy` | Toggle social spy or choose its state explicitly |
+
+### Group commands
+
+- `/group create <name> [password]` creates a public group without a password or a private group with one.
+- `/group list` lists public groups. `tkchat.bypass.private_groups` also reveals private groups.
+- `/group join <name> [password]` joins a group and notifies its online members.
+- `/group invite <player>` invites an online player; any member can invite.
+- `/group accept <name>` accepts an unexpired invitation without requiring the password.
+- `/group leave` leaves the current group.
+- `/group chat <message>` sends one group message.
+
+Group names are case-insensitively unique and must match `[A-Za-z0-9_-]{1,32}`. Invitations expire
+after five minutes. A member can also select their group by name with `/channel <group>`.
+
+The proxy blocks `/minecraft:msg`, `/minecraft:tell`, `/minecraft:w`, and `/minecraft:me` so the
+namespaced vanilla commands cannot bypass tkChat moderation.
 
 ## Permissions
 
-tkChat denies by default. Grant the nodes appropriate for each group:
+tkChat denies access by default. Permission names are fixed, lowercase LuckPerms nodes.
 
-Permission names are fixed in code rather than configurable. LuckPerms normalizes nodes to
-lowercase, so the documented form is `tkchat` even though the plugin name is styled `tkChat`.
+### Commands and channels
 
-| Pattern | Purpose |
+| Permission | Purpose |
 | --- | --- |
-| `tkchat.command.<command>` | Use a tkChat command |
+| `tkchat.command.<command>` | Use a command; canonical names are listed below |
 | `tkchat.command.channel.others` | Change another online player's active channel |
 | `tkchat.channel.<channel>.send` | Send to a configured channel |
 | `tkchat.channel.<channel>.receive` | Receive a configured channel |
-| `tkchat.format.<format>` | Use an allowed MiniMessage style in the player's own messages |
+
+Canonical command names are `channel`, `message`, `reply`, `me`, `group`, `groupchat`, `ignore`,
+`dmtoggle`, `broadcast`, `clearchat`, `socialspy`, and `reload`. Aliases and `/tkchat` subcommands use
+the canonical command permission.
+
+Channel permissions are derived from the configured channel ID. For example, the default global
+channel uses `tkchat.channel.global.send` and `tkchat.channel.global.receive`.
+
+### Bypasses
+
+| Permission | Purpose |
+| --- | --- |
 | `tkchat.bypass.ratelimit` | Ignore the chat rate limit |
-| `tkchat.bypass.links` | Include clickable URLs |
-| `tkchat.bypass.private_groups` | Join private groups without an invite or password |
-| `tkchat.bypass.group_join_notifications` | Join groups without notifying their members |
-| `tkchat.bypass.global_player_notifications` | Always see global player join/leave and server-switch notices |
+| `tkchat.bypass.links` | Make URLs clickable |
+| `tkchat.bypass.private_groups` | View and join private groups without an invitation or password |
+| `tkchat.bypass.group_join_notifications` | Join groups without notifying members |
+| `tkchat.bypass.global_player_notifications` | Always receive network join/leave and server-switch notices |
 | `tkchat.bypass.channel_restrictions` | Ignore channel and group send/receive restrictions |
 | `tkchat.bypass.chat_clear` | Keep chat history when `/clearchat` is used |
 
-Version 0.6.0 renames the former `tkchat.channels.<channel>.*` nodes to
-`tkchat.channel.<channel>.*`; update existing LuckPerms grants when upgrading.
+### Player formatting
 
-Command nodes are `channel`, `message`, `reply`, `me`, `group`, `groupchat`, `ignore`, `dmtoggle`,
-`broadcast`, `clearchat`, `socialspy`, and `reload`. Aliases and `/tkchat` subcommands use their
-canonical command's permission.
+`tkchat.format.<format>` allows a MiniMessage style in the player's own messages:
 
-Player MiniMessage formatting permissions are:
-
-- Decorations: `bold`, `italic`, `underlined`, `strikethrough`, and `obfuscated`.
-- Named colors: `black`, `dark_blue`, `dark_green`, `dark_aqua`, `dark_red`, `dark_purple`,
-  `gold`, `gray`, `dark_gray`, `blue`, `green`, `aqua`, `red`, `light_purple`, `yellow`, and
-  `white`. MiniMessage's `grey` and `dark_grey` aliases use the corresponding `gray` permission.
+- Decorations: `bold`, `italic`, `underlined`, `strikethrough`, `obfuscated`
+- Named colors: `black`, `dark_blue`, `dark_green`, `dark_aqua`, `dark_red`, `dark_purple`, `gold`,
+  `gray`, `dark_gray`, `blue`, `green`, `aqua`, `red`, `light_purple`, `yellow`, `white`
 - Other visual formats: `hex`, `gradient`, `transition`, `rainbow`, `pride`, `shadow`, `font`,
-  `reset`, and `newline`.
+  `reset`, `newline`
 
-For example, `<red>`, `<color:red>`, and `<c:red>` require `tkchat.format.red`; color arguments
-inside gradients, transitions, and shadows also require their matching named-color or `hex`
-permission. Standard decoration aliases such as `<b>`, `<i>`, `<em>`, `<u>`, `<st>`, and `<obf>`
-use their canonical permission. LuckPerms administrators can grant every style with
+`grey` and `dark_grey` use the corresponding `gray` permissions. Tag aliases such as `<b>`, `<i>`,
+`<em>`, `<u>`, `<st>`, and `<obf>` use their canonical permission. Grant all player styles with
 `tkchat.format.*`.
 
-Behavior/content tags are deliberately unavailable in player messages: click, hover, insertion,
-selector, score, NBT, translation, keybind, sprite, and head tags remain visible as literal input.
+For example, `<red>`, `<color:red>`, and `<c:red>` require `tkchat.format.red`. Colors used inside
+gradients, transitions, and shadows also require their named-color permission or `tkchat.format.hex`.
 
-Example:
+Player messages cannot use behavior/content tags such as click, hover, insertion, selector, score,
+NBT, translation, keybind, sprite, or head. Disallowed tags are displayed literally.
+
+Example starter permissions:
 
 ```text
 /lp group default permission set tkchat.command.channel true
@@ -212,170 +168,66 @@ Example:
 /lp group default permission set tkchat.channel.local.receive true
 /lp group default permission set tkchat.channel.group.send true
 /lp group default permission set tkchat.channel.group.receive true
-/lp user tkkr permission set tkchat.format.* true
 ```
 
-Configured channels live under `channels` in `plugins/tkchat/config.yml`. Each channel controls its
-ID, command aliases, display name, network/server scope, and MiniMessage format. Its permission
-nodes are derived from the ID. Grant `tkchat.bypass.channel_restrictions` and
-`tkchat.bypass.private_groups` to administrators who should bypass locked channels and private
-group access.
+When upgrading from versions before 0.6.0, replace `tkchat.channels.<channel>.*` grants with
+`tkchat.channel.<channel>.*`.
 
-Command responses are MiniMessage templates in `plugins/tkchat/messages.yml`, which is generated
-with sensible defaults on first startup. This includes usage and error messages, permission and
-moderation denials, group notifications, and group action-button labels and hover text. Runtime
-values such as player, group, and channel names are inserted as literal text, so they cannot inject
-formatting into an administrator-defined response. The prefix prepended to every response remains
-alongside the other presentation settings at `formats.response-prefix` in `config.yml`; its default
-is a colored `tkChat »`, and setting it to an empty string disables it. When an upgrade adds a new
-response, an existing `messages.yml` uses the bundled default for that missing key while retaining
-all of its configured overrides.
+LuckPerms checks include the active backend as the `server` context. Backend-only contexts such as
+world, dimension, gamemode, and region are not inferred by the proxy.
 
-The active backend name is explicitly added as LuckPerms' `server` context. World, dimension,
-gamemode, region, and other backend-only contexts are not inferred by the proxy in this release.
+## Formatting and configuration
 
-## Commands
+The main settings are in `plugins/tkchat/config.yml`. Command responses are MiniMessage templates in
+`plugins/tkchat/messages.yml`. Missing settings and response keys use the bundled defaults without
+overwriting existing files.
 
-- `/tkchat` shows the running tkChat version and points to the help command.
-- `/tkchat help` lists the usage of only the root commands the sender has permission to use;
-  `/tkchat help <command>` shows that command's description, usage, standalone commands, and
-  permission node.
-- `/tkchat <command>` provides every full command under a stable plugin-owned root. It does not
-  expose short command aliases as subcommands, but `/tkchat channel <channel> [player]` accepts
-  configured channel aliases such as `g` and `l`.
-- `/tkchat reload` reloads the Velocity configuration (`tkchat.command.reload`).
-- `/channel [channel] [player]` (`/ch`); changing another player's channel requires
-  `tkchat.command.channel.others`
-- `/<channel> [message]` and any configured alias, such as `/g` or `/l`; an omitted message
-  switches channel and a supplied message sends once without switching
-- `/msg <player> <message>` (`/tell`, `/w`, `/message`)
-- `/reply <message>` (`/r`)
-- `/me <action>`; sends to the active channel and uses `formats.me`
-- `/group` (show the current group's owner, visibility, members, and pending invitees)
-- `/group create <name> [password]` (no password creates a public group; providing one creates a private group)
-- `/group list` (list public groups and their owners; `tkchat.bypass.private_groups` also reveals
-  private groups and their visibility)
-- `/group join <name> [password]` (notifies all online members when the player joins)
-- `/group invite <player>` (any member can invite; the invite includes the current members)
-- `/group accept <name>` (invite messages include a clickable accept button and joining notifies
-  all online members)
-- `/group leave`
-- `/group chat <message>`
-- `/groupchat [message]` (`/gc`, `/pc`); an omitted message switches to the group channel
-- `/ignore <player>` (`/block`)
-- `/dmtoggle`
-- `/broadcast <message>` (`/bc`)
-- `/clearchat <channel>` (channel aliases such as `g` and `l` are accepted)
-- `/socialspy [on|off]` (`/spy`)
+Configured channels live under `channels` and define an `id`, aliases, display name, `GLOBAL` or
+`SERVER` scope, and MiniMessage format. Channel, group, direct-message, `/me`, broadcast, chat-clear,
+social-spy, and player-notification formats are under `formats`.
 
-Full root-command examples include `/tkchat channel global`, `/tkchat channel g`,
-`/tkchat local [message]`, `/tkchat message <player> <message>`, `/tkchat me <action>`,
-`/tkchat broadcast <message>`, and `/tkchat clearchat <channel>`. Standalone commands and their
-aliases remain available when another plugin has not claimed them.
+| Format | Placeholders |
+| --- | --- |
+| Channel, group, and `/me` | `<prefix>`, `<name>`, `<user>`, `<suffix>`, `<target>`/`<channel>`, `<server>`, `<message>` |
+| Direct incoming/outgoing | `<name>`, `<target>`, `<message>` |
+| Broadcast | `<message>` |
+| Chat clear | `<name>`, `<target>` |
+| Social spy | `<name>`, `<target>`, `<message>` |
+| Local/global join and leave | `<name>`, `<server>` |
+| Server switch | `<user>`/`<name>`, `<old_server>`, `<new_server>` |
+| Item-link format | `<amount>`, `<item_name>` |
+| Coordinate format | `<x>`, `<y>`, `<z>`, `<world>`, `<server>` |
 
-Group join notices are sent to the group's currently online members. Grant
-`tkchat.bypass.group_join_notifications` for silent joins. A private-group join made through
-`tkchat.bypass.private_groups` is also silent.
+Administrator-controlled formats and LuckPerms prefixes/suffixes may use MiniMessage. Player input,
+names, group names, and other runtime values are inserted literally and cannot inject formatting.
+Set `formats.response-prefix` to an empty string to remove the prefix from command responses.
 
-Reloading applies channels, channel command aliases, the default channel, chat limits and rate
-limits, formats (including the response prefix), `messages.yml`, mentions, item links, coordinate
-placeholders, clear-chat settings, SignedVelocity enforcement, and the LibertyBans fail-closed setting. Players whose
-selected channel was removed are moved to the new default channel. Changes to `instance-id`,
-`mariadb`, or `rabbitmq` are validated but require a Velocity restart because they own long-lived
-storage or transport connections; the command reports those sections after an otherwise successful
-reload.
+### Mentions, items, and coordinates
 
-The proxy also intercepts `/minecraft:msg`, `/minecraft:tell`, `/minecraft:w`, and
-`/minecraft:me`, preventing a namespaced vanilla bypass.
+- `@Username` mentions are case-insensitive, work across routed channels and broadcasts, and can
+  highlight the recipient and play a configurable sound. Configure them under `mentions`.
+- `<item>` and `[item]` show the sender's main-hand item with hover details. Configure placeholders,
+  display format, and response timeout under `item-links`.
+- `<coords>` and `[coords]` insert the sender's block coordinates. Configure placeholders, display
+  format, and response timeout under `coordinates`.
 
-Group names are unique case-insensitively and match `[A-Za-z0-9_-]{1,32}`. A member's group appears
-in `/channel` under its normalized name, so `/channel builders` switches normal chat into the
-`Builders` group. Private-group passwords are stored only as salted PBKDF2-SHA256 hashes;
-invitations bypass the password and expire after five minutes. MariaDB enforces unique normalized
-group names and one group membership per player. Group creation, joining, leaving, disbanding,
-invitation consumption, and affected active-channel repairs are transactional. tkChat also records
-each player's latest username during login, allowing group rosters to retain names when players are
-offline without relying on LuckPerms' user cache; offline roster entries are marked explicitly.
+Item and coordinate placeholders apply to channel, group, direct, `/me`, and broadcast messages.
 
-## Chat features
+### Player notifications
 
-- Broadcasts and chat clearing fan out through the network transport. Clearing a global channel
-  clears chat for every player on the network; clearing a server-scoped channel only clears chat
-  for players on the command sender's current backend. Because Minecraft uses one chat history,
-  clearing a channel also removes the recipient's visible messages from other channels.
-- Ignores apply to channel, group, and direct chat. Staff mutes remain LibertyBans' responsibility;
-  tkChat uses LibertyBans' cached mute lookup for every routed player message.
-- `/me` actions follow the sender's active static or group channel, so they inherit that route's
-  scope, permissions, ignores, moderation, rate limit, mentions, item links, and URL handling. The
-  `formats.me` MiniMessage template accepts `<prefix>`, `<name>`, `<suffix>`, `<target>` (also
-  `<channel>`), and `<message>`.
-- Case-insensitive `@Username` mentions can highlight the recipient's name and play a configurable
-  sound. Mention styling and sound settings live under `mentions`.
-- Every approved channel, group, direct, action, and broadcast message is logged once on its
-  originating Velocity console. RabbitMQ fan-out does not duplicate the log on receiving proxies.
-- The Paper adapter cancels the original backend `AsyncChatEvent` after SignedVelocity has consumed
-  the proxy decision. This prevents a second player-chat packet from producing client-side chat
-  validation errors; the approved, server-authored Velocity copy remains visible.
-- `<item>` and `[item]` link the sender's main-hand item. The Velocity plugin asks the Paper or
-  Fabric bridge for its identifier, amount, and display name, then renders a hoverable
-  item component. Placeholders, visible format, and timeout are configurable under `item-links`.
-- `<coords>` and `[coords]` insert the sender's block coordinates at send time in channel, group,
-  direct, action, and broadcast messages. The Paper or Fabric bridge supplies the position and
-  world; `coordinates.format` accepts `<x>`, `<y>`, `<z>`, `<world>`, and `<server>`. Enablement,
-  placeholders, visible format, and timeout are configurable under `coordinates`.
-- Social spy is a per-session toggle that shows eligible staff channel, group, and direct messages
-  they would not normally receive.
-- Join and leave announcements are published after the initial backend connection succeeds.
-  The explicit `notifications.local-join`, `notifications.local-leave`,
-  `notifications.global-join`, and `notifications.global-leave` booleans control which notices are
-  enabled. `formats.join` and `formats.leave` reach only players on that backend;
-  `formats.global-join` and `formats.global-leave` are network-wide. All four formats accept
-  MiniMessage plus `<name>` and `<server>`. When the corresponding local and global toggles are both
-  enabled, the local format replaces the global one on the player's backend so ordinary viewers do
-  not see a duplicate. Grant `tkchat.bypass.global_player_notifications` to viewers who should
-  always receive global notices, including when a global toggle is `false`. On the affected backend,
-  these viewers receive the global notice instead of the local notice. On a server switch, they
-  receive one network-wide `formats.server-switch` message instead of the separate local leave and
-  join messages. Its placeholders are `<user>` (or `<name>`), `<old_server>`, and `<new_server>`.
-  Ordinary viewers never receive this switch-summary message; when enabled, they only receive the
-  existing `formats.leave` notice on the old backend or `formats.join` notice on the new backend.
-  The joining or switching player does not receive their own join/switch notices. Ordinary global
-  messages only fire when entering or leaving the proxy. The Paper and Fabric bridges suppress the
-  corresponding vanilla messages.
-- Channel, group, action, direct-message, broadcast, clear, social-spy, join/leave, mention,
-  item-link, and coordinate presentation remain customizable with MiniMessage formats in the Velocity config.
-  Backend configuration stays limited to backend-local concerns.
+`notifications.local-join`, `local-leave`, `global-join`, and `global-leave` explicitly enable or
+disable their corresponding formats. Local notices reach the affected backend; global notices reach
+the network when a player enters or leaves the proxy. If both are enabled, ordinary viewers on the
+affected backend see only the local notice.
 
-## Upgrade compatibility
+Viewers with `tkchat.bypass.global_player_notifications` receive the global notice even when its
+toggle is disabled, and receive it instead of the local notice on the affected backend. They also
+receive one `formats.server-switch` summary for server changes. Ordinary viewers never receive the
+switch summary; if local notices are enabled, they see the usual leave on the old server and join on
+the new server.
 
-Existing 0.3.x `config.yml` files do not need migration: omitted additive settings such as
-`formats.me` receive their in-code default, and tkChat does not rewrite the file. Existing
-`messages.yml` overrides remain authoritative while newly introduced response keys fall back to
-their bundled defaults. `/me` and resolved coordinates use markers inside the existing serialized message envelope rather
-than adding a new network message type, so mixed 0.3.x proxies can deserialize it during a rolling
-upgrade; an older proxy degrades gracefully by showing it with the channel's ordinary format.
-Existing configs without the `notifications` section keep their former behavior: tkChat translates
-empty and non-empty join/leave formats into the new toggles in memory, without rewriting the file.
+## Multi-proxy limitation
 
-Discord integration, runtime-created custom channels, multi-language messages, and proximity chat
-are intentionally outside the current scope.
-
-## Failure behavior
-
-- LibertyBans is fail-closed by default: a failed mute lookup rejects the message.
-- MariaDB startup failure prevents tkChat from registering chat listeners unless
-  `mariadb.fallback-to-memory` is explicitly enabled.
-- Login waits for one complete transactional social-state snapshot. If that read fails, chat and
-  state-changing chat commands fail closed for that player while background retries run; broadcasts
-  and chat clearing still work. Disconnect/reconnect generations prevent a late read from restoring
-  an old session.
-- RabbitMQ may fall back to delivery inside the current Velocity process. Disable
-  `rabbitmq.fallback-to-local` when a multi-proxy network should fail closed instead.
-- Live RabbitMQ messages expire after 60 seconds to avoid replaying stale chat after downtime.
-
-## Multi-proxy note
-
-Global channels and already-addressed group messages fan out across multiple Velocity instances.
-Name lookup for `/msg` and `/group invite` currently searches the current Velocity process, which
-matches the single-proxy topology this project was designed for. A shared presence directory is the
-remaining requirement before those two commands can target a player connected to another proxy.
+RabbitMQ fans out global and already-addressed group messages. `/msg` recipient lookup and
+`/group invite` currently search only the sender's Velocity process, so they cannot target a player
+connected through another proxy without a shared presence directory.
