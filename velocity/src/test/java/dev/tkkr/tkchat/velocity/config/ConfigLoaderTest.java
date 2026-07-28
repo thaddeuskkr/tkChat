@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ConfigLoaderTest {
@@ -40,14 +41,28 @@ class ConfigLoaderTest {
         assertTrue(yaml.contains("max-queued-operations: 1024"));
         assertTrue(yaml.contains("response-prefix:"));
         assertTrue(yaml.contains("me: '<gray>* </gray><prefix><name><suffix> <message>'"));
-        assertTrue(yaml.contains("global-join: ''"));
+        assertTrue(yaml.contains("notifications:"));
+        assertTrue(yaml.contains("local-join: true"));
+        assertTrue(yaml.contains("global-join: true"));
+        assertTrue(yaml.contains("global-join: '<yellow><name> joined the network.</yellow>'"));
         assertTrue(yaml.contains("join: '<yellow><name> joined the server.</yellow>'"));
-        assertEquals("", config.formats.globalLeave);
+        assertTrue(yaml.contains("server-switch: '<yellow><user> left <old_server> and joined <new_server>.</yellow>'"));
+        assertTrue(yaml.contains("coordinates:"));
+        assertTrue(yaml.contains("placeholders: ['<coords>', '[coords]']"));
+        assertEquals("<aqua>[<x>, <y>, <z>]</aqua>", config.coordinates.format);
+        assertTrue(config.notifications.localJoin);
+        assertTrue(config.notifications.localLeave);
+        assertTrue(config.notifications.globalJoin);
+        assertTrue(config.notifications.globalLeave);
+        assertEquals("<yellow><name> left the network.</yellow>", config.formats.globalLeave);
         assertEquals("<yellow><name> left the server.</yellow>", config.formats.leave);
+        assertEquals("<yellow><user> left <old_server> and joined <new_server>.</yellow>",
+                config.formats.serverSwitch);
         assertTrue(messages.contains("no-permission:"));
         assertTrue(messages.contains("Usage: /me <action>"));
         assertTrue(messages.contains("invite-received:"));
         assertTrue(messages.contains("invite-members:"));
+        assertTrue(messages.contains("coordinate-failed:"));
         assertEquals("<red>Invalid command</red>",
                 config.messages.template(ResponseKey.ROOT_UNKNOWN));
     }
@@ -57,11 +72,31 @@ class ConfigLoaderTest {
         new ConfigLoader().load(directory);
         Path configPath = directory.resolve("config.yml");
         String oldConfig = Files.readString(configPath).replace(
-                "  me: '<gray>* </gray><prefix><name><suffix> <message>'\n", "")
-                .replace("  global-join: ''\n", "")
-                .replace("  global-leave: ''\n", "")
+                "notifications:\n"
+                        + "  # Viewers with tkchat.bypass.global_player_notifications always receive global\n"
+                        + "  # network join/leave notices and server-switch notices from every server.\n"
+                        + "  local-join: true\n"
+                        + "  local-leave: true\n"
+                        + "  global-join: true\n"
+                        + "  global-leave: true\n\n", "")
+                .replace("coordinates:\n"
+                        + "  enabled: true\n"
+                        + "  placeholders: ['<coords>', '[coords]']\n"
+                        + "  # Available format placeholders: <x>, <y>, <z>, <world>, and <server>.\n"
+                        + "  format: '<aqua>[<x>, <y>, <z>]</aqua>'\n"
+                        + "  response-timeout-millis: 1500\n\n", "")
+                .replace("  me: '<gray>* </gray><prefix><name><suffix> <message>'\n", "")
+                .replace("  global-join: '<yellow><name> joined the network.</yellow>'\n",
+                        "  global-join: ''\n")
+                .replace("  global-leave: '<yellow><name> left the network.</yellow>'\n",
+                        "  global-leave: ''\n")
                 .replace("  join: '<yellow><name> joined the server.</yellow>'\n", "")
-                .replace("  leave: '<yellow><name> left the server.</yellow>'\n", "");
+                .replace("  leave: '<yellow><name> left the server.</yellow>'\n", "")
+                .replace("  # Sent once per server switch, only to viewers with\n"
+                        + "  # tkchat.bypass.global_player_notifications. Placeholders: <user> (or <name>),\n"
+                        + "  # <old_server>, and <new_server>.\n"
+                        + "  server-switch: '<yellow><user> left <old_server> and joined <new_server>.</yellow>'\n",
+                        "");
         Files.writeString(configPath, oldConfig);
         Path messagesPath = directory.resolve("messages.yml");
         String oldMessages = Files.readString(messagesPath).replace(
@@ -81,19 +116,34 @@ class ConfigLoaderTest {
                 .replace("  list-owner: '<dark_gray>· Owner:</dark_gray> <owner> '\n", "")
                 .replace("  invite-members: '<gray>Current members: <members></gray>'\n", "")
                 .replace("  invite-members-unavailable: '<gray>Current members are temporarily unavailable.</gray>'\n", "")
-                .replace("  member-joined: '<green><player> joined <group>.</green>'\n", "");
+                .replace("  member-joined: '<green><player> joined <group>.</green>'\n", "")
+                .replace("  coordinate-failed: '<red>Your coordinates could not be shared. Please try again.</red>'\n", "");
         Files.writeString(messagesPath, oldMessages);
 
         AppConfig upgraded = new ConfigLoader().load(directory);
 
         assertEquals("<gray>* </gray><prefix><name><suffix> <message>",
                 upgraded.formats.me);
-        assertEquals("", upgraded.formats.globalJoin);
-        assertEquals("", upgraded.formats.globalLeave);
+        assertEquals("<yellow><name> joined the network.</yellow>",
+                upgraded.formats.globalJoin);
+        assertEquals("<yellow><name> left the network.</yellow>",
+                upgraded.formats.globalLeave);
         assertEquals("<yellow><name> joined the server.</yellow>", upgraded.formats.join);
         assertEquals("<yellow><name> left the server.</yellow>", upgraded.formats.leave);
+        assertEquals("<yellow><user> left <old_server> and joined <new_server>.</yellow>",
+                upgraded.formats.serverSwitch);
+        assertTrue(upgraded.notifications.localJoin);
+        assertTrue(upgraded.notifications.localLeave);
+        assertFalse(upgraded.notifications.globalJoin);
+        assertFalse(upgraded.notifications.globalLeave);
+        assertTrue(upgraded.coordinates.enabled);
+        assertEquals(java.util.List.of("<coords>", "[coords]"),
+                upgraded.coordinates.placeholders);
+        assertEquals("<aqua>[<x>, <y>, <z>]</aqua>", upgraded.coordinates.format);
         assertEquals("<red>Usage: /me <action> (maximum <max_length> characters)</red>",
                 upgraded.messages.template(ResponseKey.ME_USAGE));
+        assertEquals("<red>Your coordinates could not be shared. Please try again.</red>",
+                upgraded.messages.template(ResponseKey.FEEDBACK_COORDINATE_FAILED));
         assertEquals("<green>Set <player>'s active channel to <channel>.</green>",
                 upgraded.messages.template(ResponseKey.CHANNEL_ACTIVE_SET_OTHER));
         assertEquals("<gray>Owner: <owner></gray>",
@@ -129,6 +179,8 @@ class ConfigLoaderTest {
         assertEquals("tkchat.bypass.private_groups", Permissions.BYPASS_PRIVATE_GROUPS);
         assertEquals("tkchat.bypass.group_join_notifications",
                 Permissions.BYPASS_GROUP_JOIN_NOTIFICATIONS);
+        assertEquals("tkchat.bypass.global_player_notifications",
+                Permissions.BYPASS_GLOBAL_PLAYER_NOTIFICATIONS);
         assertEquals("tkchat.format.dark_blue", Permissions.format("dark-blue"));
     }
 }

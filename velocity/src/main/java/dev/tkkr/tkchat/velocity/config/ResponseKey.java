@@ -145,6 +145,7 @@ public enum ResponseKey {
     FEEDBACK_MODERATION_FAILED("feedback.moderation-failed"),
     FEEDBACK_DELIVERY_FAILED("feedback.delivery-failed"),
     FEEDBACK_ITEM_LINK_FAILED("feedback.item-link-failed"),
+    FEEDBACK_COORDINATE_FAILED("feedback.coordinate-failed"),
     FEEDBACK_STATE_LOAD_FAILED("feedback.state-load-failed"),
     FEEDBACK_STATE_LOAD_RECOVERED("feedback.state-load-recovered");
 

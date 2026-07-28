@@ -3,6 +3,7 @@ package dev.tkkr.tkchat.velocity.command;
 import com.velocitypowered.api.command.SimpleCommand;
 import dev.tkkr.tkchat.velocity.config.AppConfig;
 import dev.tkkr.tkchat.velocity.config.ResponseKey;
+import dev.tkkr.tkchat.velocity.service.CoordinateService;
 import dev.tkkr.tkchat.velocity.service.ItemLinkService;
 import dev.tkkr.tkchat.velocity.service.NetworkMessageService;
 import dev.tkkr.tkchat.velocity.service.ResponseService;
@@ -30,10 +31,13 @@ public final class BroadcastCommand implements SimpleCommand {
             return;
         }
         messages.broadcast(invocation.source(), content).exceptionally(error -> {
-            invocation.source().sendMessage(responses.message(
-                    unwrap(error) instanceof ItemLinkService.ItemLinkException
-                            ? ResponseKey.FEEDBACK_ITEM_LINK_FAILED
-                            : ResponseKey.BROADCAST_FAILED));
+            Throwable cause = unwrap(error);
+            ResponseKey response = cause instanceof ItemLinkService.ItemLinkException
+                    ? ResponseKey.FEEDBACK_ITEM_LINK_FAILED
+                    : cause instanceof CoordinateService.CoordinateException
+                            ? ResponseKey.FEEDBACK_COORDINATE_FAILED
+                            : ResponseKey.BROADCAST_FAILED;
+            invocation.source().sendMessage(responses.message(response));
             return null;
         });
     }

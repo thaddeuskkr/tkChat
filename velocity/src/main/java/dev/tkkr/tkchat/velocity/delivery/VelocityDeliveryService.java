@@ -5,6 +5,7 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import dev.tkkr.tkchat.core.model.ApprovedMessage;
 import dev.tkkr.tkchat.core.model.ChannelDefinition;
 import dev.tkkr.tkchat.core.model.ChannelScope;
+import dev.tkkr.tkchat.core.model.Coordinates;
 import dev.tkkr.tkchat.core.model.ItemLink;
 import dev.tkkr.tkchat.core.model.RouteKind;
 import dev.tkkr.tkchat.core.service.ChannelRegistry;
@@ -46,8 +47,10 @@ public final class VelocityDeliveryService {
     private volatile ChannelRegistry channels;
     private final VelocityAccessController access;
     private volatile AppConfig.Formats formats;
+    private volatile AppConfig.Notifications notifications;
     private volatile AppConfig.Mentions mentions;
     private volatile AppConfig.ItemLinks itemLinks;
+    private volatile AppConfig.Coordinates coordinates;
     private final PlayerFormattingService playerFormatting;
     private final PlayerStateService states;
     private final SocialSpyService spies;
@@ -62,8 +65,10 @@ public final class VelocityDeliveryService {
             ChannelRegistry channels,
             VelocityAccessController access,
             AppConfig.Formats formats,
+            AppConfig.Notifications notifications,
             AppConfig.Mentions mentions,
             AppConfig.ItemLinks itemLinks,
+            AppConfig.Coordinates coordinates,
             PlayerFormattingService playerFormatting,
             PlayerStateService states,
             SocialSpyService spies,
@@ -74,8 +79,10 @@ public final class VelocityDeliveryService {
         this.channels = channels;
         this.access = access;
         this.formats = formats;
+        this.notifications = notifications;
         this.mentions = mentions;
         this.itemLinks = itemLinks;
+        this.coordinates = coordinates;
         this.playerFormatting = playerFormatting;
         this.states = states;
         this.spies = spies;
@@ -86,15 +93,19 @@ public final class VelocityDeliveryService {
     public void reconfigure(
             ChannelRegistry channels,
             AppConfig.Formats formats,
+            AppConfig.Notifications notifications,
             AppConfig.Mentions mentions,
             AppConfig.ItemLinks itemLinks,
+            AppConfig.Coordinates coordinates,
             int clearLines,
             Duration maxDeliveryAge
     ) {
         this.channels = channels;
         this.formats = formats;
+        this.notifications = notifications;
         this.mentions = mentions;
         this.itemLinks = itemLinks;
+        this.coordinates = coordinates;
         this.clearLines = clearLines;
         this.maxDeliveryAge = maxDeliveryAge;
     }
@@ -104,10 +115,6 @@ public final class VelocityDeliveryService {
             return;
         }
         if (!recentIds.first(message.messageId())) {
-            return;
-        }
-        String lifecycleTemplate = lifecycleTemplate(message, formats);
-        if (lifecycleTemplate != null && lifecycleTemplate.isEmpty()) {
             return;
         }
         PreparedMessage prepared = prepare(message);
@@ -173,18 +180,36 @@ public final class VelocityDeliveryService {
     }
 
     private boolean shouldReceive(Player player, ApprovedMessage message) {
-        if ((message.hasJoinMarker() || message.hasGlobalJoinMarker())
+        if ((message.hasJoinMarker() || message.hasGlobalJoinMarker()
+                || message.hasServerSwitchMarker())
                 && player.getUniqueId().equals(message.senderId())) {
             return false;
         }
+        if (message.hasServerSwitchMarker()) {
+            return player.hasPermission(Permissions.BYPASS_GLOBAL_PLAYER_NOTIFICATIONS);
+        }
         if (message.hasJoinMarker() || message.hasLeaveMarker()) {
-            return isOnServer(player, message.senderServerId());
+            boolean globalPlayerNotifications = player.hasPermission(
+                    Permissions.BYPASS_GLOBAL_PLAYER_NOTIFICATIONS);
+            return !globalPlayerNotifications
+                    && localNotificationEnabled(message, notifications)
+                    && isOnServer(player, message.senderServerId());
         }
         if (message.hasGlobalJoinMarker() || message.hasGlobalLeaveMarker()) {
-            boolean hasLocalOverride = message.hasGlobalJoinMarker()
-                    ? !formats.join.isEmpty()
-                    : !formats.leave.isEmpty();
-            return !hasLocalOverride || !isOnServer(player, message.senderServerId());
+            boolean globalPlayerNotifications = player.hasPermission(
+                    Permissions.BYPASS_GLOBAL_PLAYER_NOTIFICATIONS);
+            boolean globalEnabled = message.hasGlobalJoinMarker()
+                    ? notifications.globalJoin
+                    : notifications.globalLeave;
+            if (!globalEnabled && !globalPlayerNotifications) {
+                return false;
+            }
+            boolean localEnabled = message.hasGlobalJoinMarker()
+                    ? notifications.localJoin
+                    : notifications.localLeave;
+            return globalPlayerNotifications
+                    || !localEnabled
+                    || !isOnServer(player, message.senderServerId());
         }
         if (message.routeKind() == RouteKind.BROADCAST) {
             return true;
@@ -294,8 +319,11 @@ public final class VelocityDeliveryService {
     }
 
     private PreparedMessage prepare(ApprovedMessage message) {
-        Component content = linkify(linkItems(
-                playerFormatting.render(message.content(), message.formatting()), message.itemLink()));
+        Component content = playerFormatting.render(message.content(), message.formatting());
+        content = linkItems(content, message.itemLink());
+        content = linkCoordinates(
+                content, message.findCoordinates().orElse(null), message.senderServerId());
+        content = linkify(content);
         return new PreparedMessage(
                 content, trustedMeta(message.senderPrefix()), trustedMeta(message.senderSuffix()));
     }
@@ -328,10 +356,13 @@ public final class VelocityDeliveryService {
         TagResolver placeholders = TagResolver.builder()
                 .resolver(Placeholder.component("prefix", prepared.prefix()))
                 .resolver(Placeholder.unparsed("name", message.senderName()))
+                .resolver(Placeholder.unparsed("user", message.senderName()))
                 .resolver(Placeholder.component("suffix", prepared.suffix()))
                 .resolver(Placeholder.unparsed("target", message.routeDisplayName()))
                 .resolver(Placeholder.unparsed("channel", message.routeDisplayName()))
                 .resolver(Placeholder.unparsed("server", message.senderServerId()))
+                .resolver(Placeholder.unparsed("old_server", message.routeId()))
+                .resolver(Placeholder.unparsed("new_server", message.routeDisplayName()))
                 .resolver(Placeholder.component("message", content))
                 .build();
         try {
@@ -355,6 +386,9 @@ public final class VelocityDeliveryService {
             ApprovedMessage message,
             AppConfig.Formats formats
     ) {
+        if (message.hasServerSwitchMarker()) {
+            return formats.serverSwitch;
+        }
         if (message.hasGlobalJoinMarker()) {
             return formats.globalJoin;
         }
@@ -371,8 +405,22 @@ public final class VelocityDeliveryService {
     }
 
     private static boolean isLifecycleMessage(ApprovedMessage message) {
-        return message.hasGlobalJoinMarker() || message.hasGlobalLeaveMarker()
+        return message.hasServerSwitchMarker()
+                || message.hasGlobalJoinMarker() || message.hasGlobalLeaveMarker()
                 || message.hasJoinMarker() || message.hasLeaveMarker();
+    }
+
+    private static boolean localNotificationEnabled(
+            ApprovedMessage message,
+            AppConfig.Notifications notifications
+    ) {
+        if (message.hasJoinMarker()) {
+            return notifications.localJoin;
+        }
+        if (message.hasLeaveMarker()) {
+            return notifications.localLeave;
+        }
+        return true;
     }
 
     private static boolean isOnServer(Player player, String serverId) {
@@ -445,6 +493,34 @@ public final class VelocityDeliveryService {
         Component replacement = display;
         Component result = input;
         for (String placeholder : itemLinks.placeholders) {
+            result = result.replaceText(TextReplacementConfig.builder()
+                    .matchLiteral(placeholder)
+                    .replacement(replacement)
+                    .build());
+        }
+        return result;
+    }
+
+    private Component linkCoordinates(Component input, Coordinates value, String serverId) {
+        if (value == null) {
+            return input;
+        }
+        Component display;
+        try {
+            display = miniMessage.deserialize(coordinates.format,
+                    Placeholder.unparsed("x", Integer.toString(value.x())),
+                    Placeholder.unparsed("y", Integer.toString(value.y())),
+                    Placeholder.unparsed("z", Integer.toString(value.z())),
+                    Placeholder.unparsed("world", value.world()),
+                    Placeholder.unparsed("server", serverId));
+        } catch (RuntimeException malformedFormat) {
+            display = Component.text(
+                    "[" + value.x() + ", " + value.y() + ", " + value.z() + "]",
+                    NamedTextColor.AQUA);
+        }
+        Component replacement = display;
+        Component result = input;
+        for (String placeholder : coordinates.placeholders) {
             result = result.replaceText(TextReplacementConfig.builder()
                     .matchLiteral(placeholder)
                     .replacement(replacement)

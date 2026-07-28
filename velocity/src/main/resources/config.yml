@@ -14,6 +14,14 @@ chat:
   # Discard delayed transport messages rather than replaying old chat.
   max-delivery-age-millis: 30000
 
+notifications:
+  # Viewers with tkchat.bypass.global_player_notifications always receive global
+  # network join/leave notices and server-switch notices from every server.
+  local-join: true
+  local-leave: true
+  global-join: true
+  global-leave: true
+
 mentions:
   enabled: true
   prefix: '@'
@@ -27,6 +35,13 @@ item-links:
   enabled: true
   placeholders: ['<item>', '[item]']
   format: '<aqua>[<amount>x <item_name>]</aqua>'
+  response-timeout-millis: 1500
+
+coordinates:
+  enabled: true
+  placeholders: ['<coords>', '[coords]']
+  # Available format placeholders: <x>, <y>, <z>, <world>, and <server>.
+  format: '<aqua>[<x>, <y>, <z>]</aqua>'
   response-timeout-millis: 1500
 
 mariadb:
@@ -77,11 +92,15 @@ formats:
   # Join/leave announcements. Available placeholders are <name> and <server>.
   # Global messages reach the rest of the network; local messages replace them on the
   # player's current server and also fire on server switches. Join messages are not sent
-  # to the joining player. Set any value to '' to disable that announcement.
-  global-join: ''
-  global-leave: ''
+  # to the joining player. Use the notifications toggles above to enable or disable them.
+  global-join: '<yellow><name> joined the network.</yellow>'
+  global-leave: '<yellow><name> left the network.</yellow>'
   join: '<yellow><name> joined the server.</yellow>'
   leave: '<yellow><name> left the server.</yellow>'
+  # Sent once per server switch, only to viewers with
+  # tkchat.bypass.global_player_notifications. Placeholders: <user> (or <name>),
+  # <old_server>, and <new_server>.
+  server-switch: '<yellow><user> left <old_server> and joined <new_server>.</yellow>'
 
 channels:
   - id: global

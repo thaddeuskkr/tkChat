@@ -41,9 +41,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlayerLifecycleListenerTest {
     @Test
-    void serverSwitchPublishesOnlyLocalLeaveAndJoinMessages() {
+    void serverSwitchPublishesLocalMessagesAndPermissionSummary() {
         CapturingTransport transport = new CapturingTransport();
-        NetworkMessageService messages = new NetworkMessageService(transport, null, null);
+        NetworkMessageService messages = new NetworkMessageService(transport, null, null, null);
         PlayerLifecycleListener listener = new PlayerLifecycleListener(
                 null, null, null, null, null, null, null, messages, null);
         Player player = playerOnServer("beta");
@@ -51,13 +51,17 @@ class PlayerLifecycleListenerTest {
         listener.onServerPostConnect(new ServerPostConnectEvent(
                 player, registeredServer("alpha")));
 
-        assertEquals(2, transport.published.size());
+        assertEquals(3, transport.published.size());
         ApprovedMessage leave = transport.published.get(0);
         ApprovedMessage join = transport.published.get(1);
+        ApprovedMessage summary = transport.published.get(2);
         assertTrue(leave.hasLeaveMarker());
         assertEquals("alpha", leave.senderServerId());
         assertTrue(join.hasJoinMarker());
         assertEquals("beta", join.senderServerId());
+        assertTrue(summary.hasServerSwitchMarker());
+        assertEquals("alpha", summary.routeId());
+        assertEquals("beta", summary.routeDisplayName());
     }
 
     @Test
@@ -161,9 +165,9 @@ class PlayerLifecycleListenerTest {
                 Clock.systemUTC(),
                 "bypass");
         VelocityChatService chat = new VelocityChatService(
-                proxy, router, transport, conversations, null, null, null,
+                proxy, router, transport, conversations, null, null, null, null,
                 8, Duration.ofSeconds(30));
-        NetworkMessageService messages = new NetworkMessageService(transport, null, null);
+        NetworkMessageService messages = new NetworkMessageService(transport, null, null, null);
         PlayerLifecycleListener listener = new PlayerLifecycleListener(
                 null, proxy, null, states, conversations, spies, chat, messages, null);
         return new LifecycleFixture(listener, states, conversations, spies, transport);

@@ -6,6 +6,7 @@ import com.velocitypowered.api.proxy.Player;
 import dev.tkkr.tkchat.core.model.ApprovedMessage;
 import dev.tkkr.tkchat.core.model.ChannelDefinition;
 import dev.tkkr.tkchat.core.model.ChannelScope;
+import dev.tkkr.tkchat.core.model.Coordinates;
 import dev.tkkr.tkchat.core.model.RouteKind;
 import dev.tkkr.tkchat.core.model.ItemLink;
 import dev.tkkr.tkchat.core.service.MessageTransport;
@@ -45,16 +46,18 @@ class NetworkMessageServiceTest {
     void playerBroadcastIsEnrichedBeforePublishing() {
         CapturingTransport transport = new CapturingTransport();
         ItemLink linkedItem = new ItemLink("minecraft:diamond", 2, "Diamond");
+        Coordinates coordinates = new Coordinates(10, 70, -30, "minecraft:overworld");
         NetworkMessageService messages = new NetworkMessageService(
                 transport,
                 (player, message) -> CompletableFuture.completedFuture(
-                        message.withItemLink(linkedItem)));
+                        message.withItemLink(linkedItem).withCoordinates(coordinates)));
 
-        messages.broadcast(player(), "Look: [item]").toCompletableFuture().join();
+        messages.broadcast(player(), "Look: [item] at [coords]").toCompletableFuture().join();
 
         assertEquals(RouteKind.BROADCAST, transport.published.routeKind());
-        assertEquals("Look: [item]", transport.published.content());
+        assertEquals("Look: [item] at [coords]", transport.published.content());
         assertEquals(linkedItem, transport.published.itemLink());
+        assertEquals(coordinates, transport.published.findCoordinates().orElseThrow());
     }
 
     @Test
@@ -76,6 +79,7 @@ class NetworkMessageServiceTest {
         assertEquals(ChannelScope.SERVER, localJoin.channelScope());
         assertEquals("lobby", localJoin.senderServerId());
         org.junit.jupiter.api.Assertions.assertTrue(localJoin.hasJoinMarker());
+        org.junit.jupiter.api.Assertions.assertFalse(localJoin.hasServerSwitchMarker());
         assertEquals("Broadcaster joined the server.", localJoin.content());
 
         messages.playerLeft(player, "survival").toCompletableFuture().join();
@@ -86,6 +90,7 @@ class NetworkMessageServiceTest {
         assertEquals("Broadcaster left the network.", globalLeave.content());
         assertEquals("survival", localLeave.senderServerId());
         org.junit.jupiter.api.Assertions.assertTrue(localLeave.hasLeaveMarker());
+        org.junit.jupiter.api.Assertions.assertFalse(localLeave.hasServerSwitchMarker());
         assertEquals("Broadcaster left the server.", localLeave.content());
 
         messages.playerSwitchedServers(
@@ -93,13 +98,24 @@ class NetworkMessageServiceTest {
 
         ApprovedMessage switchLeave = transport.publishedMessages.get(4);
         ApprovedMessage switchJoin = transport.publishedMessages.get(5);
-        assertEquals(6, transport.publishedMessages.size());
+        ApprovedMessage switchSummary = transport.publishedMessages.get(6);
+        assertEquals(7, transport.publishedMessages.size());
         assertEquals(ChannelScope.SERVER, switchLeave.channelScope());
         assertEquals("survival", switchLeave.senderServerId());
         org.junit.jupiter.api.Assertions.assertTrue(switchLeave.hasLeaveMarker());
+        org.junit.jupiter.api.Assertions.assertFalse(switchLeave.hasServerSwitchMarker());
         assertEquals(ChannelScope.SERVER, switchJoin.channelScope());
         assertEquals("minigames", switchJoin.senderServerId());
         org.junit.jupiter.api.Assertions.assertTrue(switchJoin.hasJoinMarker());
+        org.junit.jupiter.api.Assertions.assertFalse(switchJoin.hasServerSwitchMarker());
+        assertEquals(RouteKind.CHANNEL, switchSummary.routeKind());
+        assertEquals(ChannelScope.SERVER, switchSummary.channelScope());
+        assertEquals("survival", switchSummary.routeId());
+        assertEquals("minigames", switchSummary.routeDisplayName());
+        assertEquals("", switchSummary.senderServerId());
+        assertEquals("Broadcaster left survival and joined minigames.", switchSummary.content());
+        org.junit.jupiter.api.Assertions.assertTrue(switchSummary.hasJoinMarker());
+        org.junit.jupiter.api.Assertions.assertTrue(switchSummary.hasServerSwitchMarker());
     }
 
     private static CommandSource console() {

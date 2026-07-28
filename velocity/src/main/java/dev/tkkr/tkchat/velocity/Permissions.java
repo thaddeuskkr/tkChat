@@ -9,6 +9,8 @@ public final class Permissions {
     public static final String BYPASS_PRIVATE_GROUPS = "tkchat.bypass.private_groups";
     public static final String BYPASS_GROUP_JOIN_NOTIFICATIONS =
             "tkchat.bypass.group_join_notifications";
+    public static final String BYPASS_GLOBAL_PLAYER_NOTIFICATIONS =
+            "tkchat.bypass.global_player_notifications";
     public static final String BYPASS_CHANNEL_RESTRICTIONS = "tkchat.bypass.channel_restrictions";
     public static final String BYPASS_CHAT_CLEAR = "tkchat.bypass.chat_clear";
 

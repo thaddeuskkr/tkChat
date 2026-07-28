@@ -27,7 +27,12 @@ public final class ConfigLoader {
                 Files.copy(defaults, configPath);
             }
         }
-        AppConfig config = mapper.readValue(configPath.toFile(), AppConfig.class);
+        JsonNode root = mapper.readTree(configPath.toFile());
+        if (root == null || !root.isObject()) {
+            throw new IOException("config.yml must contain a mapping");
+        }
+        AppConfig config = mapper.treeToValue(root, AppConfig.class);
+        migrateLifecycleNotifications(root, config);
         config.messages = loadMessages(dataDirectory);
         String mariaUrl = System.getenv("TKCHAT_MARIADB_URL");
         if (mariaUrl != null && !mariaUrl.isBlank()) {
@@ -47,6 +52,46 @@ public final class ConfigLoader {
         }
         config.validate();
         return config;
+    }
+
+    private static void migrateLifecycleNotifications(JsonNode root, AppConfig config) {
+        if (!root.has("notifications") && config.notifications != null) {
+            JsonNode formats = root.path("formats");
+            config.notifications.localJoin = legacyNotificationEnabled(
+                    formats, "join", config.formats.join, true);
+            config.notifications.localLeave = legacyNotificationEnabled(
+                    formats, "leave", config.formats.leave, true);
+            config.notifications.globalJoin = legacyNotificationEnabled(
+                    formats, "global-join", config.formats.globalJoin, false);
+            config.notifications.globalLeave = legacyNotificationEnabled(
+                    formats, "global-leave", config.formats.globalLeave, false);
+        }
+
+        AppConfig.Formats defaults = new AppConfig.Formats();
+        config.formats.join = nonBlankOrDefault(config.formats.join, defaults.join);
+        config.formats.leave = nonBlankOrDefault(config.formats.leave, defaults.leave);
+        config.formats.globalJoin = nonBlankOrDefault(
+                config.formats.globalJoin, defaults.globalJoin);
+        config.formats.globalLeave = nonBlankOrDefault(
+                config.formats.globalLeave, defaults.globalLeave);
+        config.formats.serverSwitch = nonBlankOrDefault(
+                config.formats.serverSwitch, defaults.serverSwitch);
+    }
+
+    private static boolean legacyNotificationEnabled(
+            JsonNode formats,
+            String key,
+            String value,
+            boolean defaultEnabled
+    ) {
+        if (!formats.isObject() || !formats.has(key)) {
+            return defaultEnabled;
+        }
+        return value != null && !value.isBlank();
+    }
+
+    private static String nonBlankOrDefault(String value, String defaultValue) {
+        return value == null || value.isBlank() ? defaultValue : value;
     }
 
     private ResponseMessages loadMessages(Path dataDirectory) throws IOException {

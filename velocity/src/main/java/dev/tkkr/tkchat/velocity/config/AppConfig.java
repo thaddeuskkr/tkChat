@@ -16,8 +16,10 @@ public final class AppConfig {
     public String defaultChannel = "global";
     public boolean requireSignedVelocity = true;
     public Chat chat = new Chat();
+    public Notifications notifications = new Notifications();
     public Mentions mentions = new Mentions();
     public ItemLinks itemLinks = new ItemLinks();
+    public Coordinates coordinates = new Coordinates();
     public MariaDb mariadb = new MariaDb();
     public RabbitMq rabbitmq = new RabbitMq();
     public LibertyBans libertyBans = new LibertyBans();
@@ -102,15 +104,38 @@ public final class AppConfig {
         if (itemLinks.responseTimeoutMillis < 100 || itemLinks.responseTimeoutMillis > 10_000) {
             throw new IllegalArgumentException("item-links.response-timeout-millis must be between 100 and 10000");
         }
+        if (coordinates == null || coordinates.placeholders == null
+                || coordinates.placeholders.isEmpty()
+                || coordinates.placeholders.stream()
+                .anyMatch(value -> value == null || value.isBlank())) {
+            throw new IllegalArgumentException(
+                    "coordinates.placeholders must contain at least one value");
+        }
+        if (coordinates.format == null || coordinates.format.isBlank()) {
+            throw new IllegalArgumentException("coordinates.format cannot be blank");
+        }
+        if (coordinates.responseTimeoutMillis < 100
+                || coordinates.responseTimeoutMillis > 10_000) {
+            throw new IllegalArgumentException(
+                    "coordinates.response-timeout-millis must be between 100 and 10000");
+        }
         if (formats.responsePrefix == null) {
             throw new IllegalArgumentException("formats.response-prefix cannot be null");
         }
         if (formats.me == null) {
             throw new IllegalArgumentException("formats.me cannot be null");
         }
-        if (formats.join == null || formats.leave == null
+        if (notifications == null) {
+            throw new IllegalArgumentException("notifications cannot be null");
+        }
+        if (formats.join == null || formats.leave == null || formats.serverSwitch == null
                 || formats.globalJoin == null || formats.globalLeave == null) {
-            throw new IllegalArgumentException("join and leave formats cannot be null");
+            throw new IllegalArgumentException("lifecycle formats cannot be null");
+        }
+        if (formats.join.isBlank() || formats.leave.isBlank() || formats.serverSwitch.isBlank()
+                || formats.globalJoin.isBlank() || formats.globalLeave.isBlank()) {
+            throw new IllegalArgumentException(
+                    "lifecycle formats cannot be blank; use notification toggles or permissions to control them");
         }
     }
 
@@ -142,6 +167,13 @@ public final class AppConfig {
         public long maxDeliveryAgeMillis = 30_000;
     }
 
+    public static final class Notifications {
+        public boolean localJoin = true;
+        public boolean localLeave = true;
+        public boolean globalJoin = true;
+        public boolean globalLeave = true;
+    }
+
     public static final class Mentions {
         public boolean enabled = true;
         public String prefix = "@";
@@ -156,6 +188,13 @@ public final class AppConfig {
         public boolean enabled = true;
         public List<String> placeholders = new ArrayList<>(List.of("<item>", "[item]"));
         public String format = "<aqua>[<amount>x <item_name>]</aqua>";
+        public long responseTimeoutMillis = 1_500;
+    }
+
+    public static final class Coordinates {
+        public boolean enabled = true;
+        public List<String> placeholders = new ArrayList<>(List.of("<coords>", "[coords]"));
+        public String format = "<aqua>[<x>, <y>, <z>]</aqua>";
         public long responseTimeoutMillis = 1_500;
     }
 
@@ -201,10 +240,11 @@ public final class AppConfig {
         public String broadcast = "<dark_gray>[</dark_gray><gold>Broadcast</gold><dark_gray>]</dark_gray> <message>";
         public String chatClear = "<gray><target> chat was cleared by <white><name></white>.</gray>";
         public String socialSpy = "<dark_gray>[Spy: <target>]</dark_gray> <name><dark_gray>: </dark_gray><message>";
-        public String globalJoin = "";
-        public String globalLeave = "";
+        public String globalJoin = "<yellow><name> joined the network.</yellow>";
+        public String globalLeave = "<yellow><name> left the network.</yellow>";
         public String join = "<yellow><name> joined the server.</yellow>";
         public String leave = "<yellow><name> left the server.</yellow>";
+        public String serverSwitch = "<yellow><user> left <old_server> and joined <new_server>.</yellow>";
     }
 
     public static final class Channel {

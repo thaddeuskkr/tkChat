@@ -17,6 +17,7 @@ import java.util.function.BiFunction;
 
 public final class NetworkMessageService {
     private static final UUID CONSOLE_ID = new UUID(0, 0);
+    private static final String LEGACY_SUPPRESSED_SERVER_ID = "";
 
     private final MessageTransport transport;
     private final BiFunction<Player, ApprovedMessage, CompletionStage<ApprovedMessage>> broadcastEnricher;
@@ -24,10 +25,12 @@ public final class NetworkMessageService {
     public NetworkMessageService(
             MessageTransport transport,
             ItemLinkService itemLinks,
+            CoordinateService coordinates,
             PlayerFormattingService formatting
     ) {
         this(transport, (player, message) -> itemLinks.enrich(
-                player, message.withFormatting(formatting.allowed(player))));
+                        player, message.withFormatting(formatting.allowed(player)))
+                .thenCompose(enriched -> coordinates.enrich(player, enriched)));
     }
 
     NetworkMessageService(
@@ -84,7 +87,19 @@ public final class NetworkMessageService {
         ApprovedMessage join = lifecycleMessage(
                 player, currentServerId, "join", ChannelScope.SERVER,
                 player.getUsername() + " joined the server.").asJoinMessage();
-        return publishBoth(leave, join);
+        // The route fields carry old/new server IDs without changing the wire model. The existing
+        // join marker and deliberately unmatched server ID make older proxies suppress this event;
+        // updated proxies recognize the switch marker and route it only by permission.
+        ApprovedMessage serverSwitch = new ApprovedMessage(
+                UUID.randomUUID(), Instant.now(), RouteKind.CHANNEL,
+                previousServerId, currentServerId, "presence", ChannelScope.SERVER,
+                player.getUniqueId(), player.getUsername(), LEGACY_SUPPRESSED_SERVER_ID, "", "",
+                player.getUsername() + " left " + previousServerId
+                        + " and joined " + currentServerId + ".",
+                Set.of(), null, Set.of())
+                .asJoinMessage()
+                .asServerSwitchMessage();
+        return publishAll(leave, join, serverSwitch);
     }
 
     private static ApprovedMessage message(
@@ -129,9 +144,14 @@ public final class NetworkMessageService {
             ApprovedMessage global,
             ApprovedMessage local
     ) {
-        CompletionStage<Void> globalPublish = transport.publish(global);
-        CompletionStage<Void> localPublish = transport.publish(local);
-        return CompletableFuture.allOf(
-                globalPublish.toCompletableFuture(), localPublish.toCompletableFuture());
+        return publishAll(global, local);
+    }
+
+    private CompletionStage<Void> publishAll(ApprovedMessage... messages) {
+        CompletableFuture<?>[] publishes = new CompletableFuture<?>[messages.length];
+        for (int index = 0; index < messages.length; index++) {
+            publishes[index] = transport.publish(messages[index]).toCompletableFuture();
+        }
+        return CompletableFuture.allOf(publishes);
     }
 }

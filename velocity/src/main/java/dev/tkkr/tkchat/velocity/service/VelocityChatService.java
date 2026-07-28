@@ -26,6 +26,7 @@ public final class VelocityChatService {
     private final MessageTransport transport;
     private final ConversationTracker conversations;
     private final ItemLinkService itemLinks;
+    private final CoordinateService coordinates;
     private final PlayerFormattingService formatting;
     private final ResponseService responses;
     private final PerSenderTaskQueue outbound;
@@ -36,6 +37,7 @@ public final class VelocityChatService {
             MessageTransport transport,
             ConversationTracker conversations,
             ItemLinkService itemLinks,
+            CoordinateService coordinates,
             PlayerFormattingService formatting,
             ResponseService responses,
             int maxPendingMessagesPerSender,
@@ -46,6 +48,7 @@ public final class VelocityChatService {
         this.transport = transport;
         this.conversations = conversations;
         this.itemLinks = itemLinks;
+        this.coordinates = coordinates;
         this.formatting = formatting;
         this.responses = responses;
         this.outbound = new PerSenderTaskQueue(
@@ -168,15 +171,18 @@ public final class VelocityChatService {
             prepared = prepared.asAction();
         }
         return itemLinks.enrich(sender, prepared)
+                .thenCompose(message -> coordinates.enrich(sender, message))
                 .thenCompose(transport::publish)
                 .exceptionally(failure -> {
                     Throwable cause = failure instanceof CompletionException && failure.getCause() != null
                             ? failure.getCause()
                             : failure;
-                    sender.sendMessage(responses.message(
-                            cause instanceof ItemLinkService.ItemLinkException
-                                    ? ResponseKey.FEEDBACK_ITEM_LINK_FAILED
-                                    : ResponseKey.FEEDBACK_DELIVERY_FAILED));
+                    ResponseKey response = cause instanceof ItemLinkService.ItemLinkException
+                            ? ResponseKey.FEEDBACK_ITEM_LINK_FAILED
+                            : cause instanceof CoordinateService.CoordinateException
+                                    ? ResponseKey.FEEDBACK_COORDINATE_FAILED
+                                    : ResponseKey.FEEDBACK_DELIVERY_FAILED;
+                    sender.sendMessage(responses.message(response));
                     return null;
                 });
     }

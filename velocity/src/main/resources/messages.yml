@@ -166,5 +166,6 @@ feedback:
   moderation-failed: '<red>Chat moderation failed. Your message was not sent.</red>'
   delivery-failed: '<red>Chat delivery failed. Please try again.</red>'
   item-link-failed: '<red>The item could not be linked. Please try again.</red>'
+  coordinate-failed: '<red>Your coordinates could not be shared. Please try again.</red>'
   state-load-failed: '<red>Chat is temporarily unavailable while your settings are loaded. Retrying automatically.</red>'
   state-load-recovered: '<green>Chat settings loaded; chat is available again.</green>'

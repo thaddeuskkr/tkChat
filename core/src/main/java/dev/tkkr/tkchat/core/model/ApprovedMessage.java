@@ -1,8 +1,11 @@
 package dev.tkkr.tkchat.core.model;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -33,6 +36,8 @@ public record ApprovedMessage(
     private static final String LEAVE_MARKER = "tkchat:leave";
     private static final String GLOBAL_JOIN_MARKER = "tkchat:global_join";
     private static final String GLOBAL_LEAVE_MARKER = "tkchat:global_leave";
+    private static final String SERVER_SWITCH_MARKER = "tkchat:server_switch";
+    private static final String COORDINATES_MARKER_PREFIX = "tkchat:coords:";
 
     public ApprovedMessage {
         messageId = Objects.requireNonNull(messageId, "messageId");
@@ -57,6 +62,45 @@ public record ApprovedMessage(
                 messageId, createdAt, routeKind, routeId, routeDisplayName, channelId, channelScope,
                 senderId, senderName, senderServerId, senderPrefix, senderSuffix, content,
                 formatting, replacement, recipients);
+    }
+
+    /**
+     * Coordinates use the existing formatting collection rather than a new record component. This
+     * keeps the JSON wire shape readable by older proxies during a rolling upgrade; they ignore the
+     * marker and leave the visible placeholder unchanged.
+     */
+    public ApprovedMessage withCoordinates(Coordinates coordinates) {
+        Objects.requireNonNull(coordinates, "coordinates");
+        HashSet<String> replacement = new HashSet<>(formatting);
+        replacement.removeIf(value -> value.startsWith(COORDINATES_MARKER_PREFIX));
+        String encodedWorld = Base64.getUrlEncoder().withoutPadding().encodeToString(
+                coordinates.world().getBytes(StandardCharsets.UTF_8));
+        replacement.add(COORDINATES_MARKER_PREFIX
+                + coordinates.x() + ":" + coordinates.y() + ":" + coordinates.z()
+                + ":" + encodedWorld);
+        return withFormatting(replacement);
+    }
+
+    public Optional<Coordinates> findCoordinates() {
+        for (String marker : formatting) {
+            if (!marker.startsWith(COORDINATES_MARKER_PREFIX)) {
+                continue;
+            }
+            String[] values = marker.substring(COORDINATES_MARKER_PREFIX.length()).split(":", 4);
+            if (values.length != 4) {
+                continue;
+            }
+            try {
+                String world = new String(
+                        Base64.getUrlDecoder().decode(values[3]), StandardCharsets.UTF_8);
+                return Optional.of(new Coordinates(
+                        Integer.parseInt(values[0]), Integer.parseInt(values[1]),
+                        Integer.parseInt(values[2]), world));
+            } catch (IllegalArgumentException malformedMarker) {
+                // Unknown or damaged compatibility markers must not stop message delivery.
+            }
+        }
+        return Optional.empty();
     }
 
     public ApprovedMessage withFormatting(Set<String> replacement) {
@@ -104,6 +148,14 @@ public record ApprovedMessage(
 
     public boolean hasGlobalLeaveMarker() {
         return formatting.contains(GLOBAL_LEAVE_MARKER);
+    }
+
+    public ApprovedMessage asServerSwitchMessage() {
+        return withMarker(SERVER_SWITCH_MARKER);
+    }
+
+    public boolean hasServerSwitchMarker() {
+        return formatting.contains(SERVER_SWITCH_MARKER);
     }
 
     private ApprovedMessage withMarker(String marker) {

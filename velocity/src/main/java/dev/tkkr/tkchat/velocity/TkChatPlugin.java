@@ -25,6 +25,7 @@ import dev.tkkr.tkchat.velocity.listener.ChatListener;
 import dev.tkkr.tkchat.velocity.listener.PlayerLifecycleListener;
 import dev.tkkr.tkchat.velocity.listener.VanillaCommandBypassListener;
 import dev.tkkr.tkchat.velocity.service.VelocityChatService;
+import dev.tkkr.tkchat.velocity.service.CoordinateService;
 import dev.tkkr.tkchat.velocity.service.ItemLinkService;
 import dev.tkkr.tkchat.velocity.service.PlayerFormattingService;
 import dev.tkkr.tkchat.velocity.service.ResponseService;
@@ -156,6 +157,7 @@ public final class TkChatPlugin {
     private SocialRepository repository;
     private MessageTransport transport;
     private ItemLinkService itemLinks;
+    private CoordinateService coordinates;
     private ChannelRegistry channels;
     private VelocityAccessController access;
     private PlayerStateService states;
@@ -204,19 +206,22 @@ public final class TkChatPlugin {
             spies = new SocialSpyService();
             PlayerFormattingService formatting = new PlayerFormattingService();
             delivery = new VelocityDeliveryService(
-                    proxy, channels, access, config.formats, config.mentions, config.itemLinks,
+                    proxy, channels, access, config.formats, config.notifications,
+                    config.mentions, config.itemLinks, config.coordinates,
                     formatting, states, spies, config.chat.clearLines,
                     java.time.Duration.ofMillis(config.chat.maxDeliveryAgeMillis));
             transport.start(delivery::deliver);
 
             ConversationTracker conversations = new ConversationTracker();
             itemLinks = new ItemLinkService(proxy, config.itemLinks);
+            coordinates = new CoordinateService(proxy, config.coordinates);
             chat = new VelocityChatService(
-                    proxy, router, transport, conversations, itemLinks, formatting,
+                    proxy, router, transport, conversations, itemLinks, coordinates, formatting,
                     responses,
                     config.chat.maxPendingMessagesPerSender,
                     java.time.Duration.ofMillis(config.chat.maxMessageAgeMillis));
-            networkMessages = new NetworkMessageService(transport, itemLinks, formatting);
+            networkMessages = new NetworkMessageService(
+                    transport, itemLinks, coordinates, formatting);
 
             commandRegistrar = new CommandRegistrar(this, proxy, version);
             commandRegistrar.register(
@@ -224,6 +229,7 @@ public final class TkChatPlugin {
                     responses, config, this::reloadConfig);
 
             registerRuntimeListener(itemLinks);
+            registerRuntimeListener(coordinates);
             registerRuntimeListener(new ChatListener(chat, states, responses));
             PlayerLifecycleListener lifecycle = new PlayerLifecycleListener(
                     this, proxy, logger, states, conversations, spies, chat,
@@ -271,9 +277,10 @@ public final class TkChatPlugin {
                     networkMessages, spies, responses, config, this::reloadConfig);
             access.reconfigure(config.libertyBans.failClosed);
             itemLinks.reconfigure(config.itemLinks);
+            coordinates.reconfigure(config.coordinates);
             delivery.reconfigure(
-                    replacementChannels, config.formats, config.mentions,
-                    config.itemLinks, config.chat.clearLines,
+                    replacementChannels, config.formats, config.notifications, config.mentions,
+                    config.itemLinks, config.coordinates, config.chat.clearLines,
                     java.time.Duration.ofMillis(config.chat.maxDeliveryAgeMillis));
             chat.reconfigure(
                     replacementRouter,
@@ -377,6 +384,14 @@ public final class TkChatPlugin {
                 logger.warn("Could not close the tkChat item-link bridge", error);
             }
             itemLinks = null;
+        }
+        if (coordinates != null) {
+            try {
+                coordinates.close();
+            } catch (RuntimeException error) {
+                logger.warn("Could not close the tkChat coordinate bridge", error);
+            }
+            coordinates = null;
         }
         if (repository != null) {
             try {

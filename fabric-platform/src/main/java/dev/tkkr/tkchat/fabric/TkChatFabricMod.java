@@ -15,6 +15,7 @@ public final class TkChatFabricMod implements DedicatedServerModInitializer {
     @Override
     public void onInitializeServer() {
         FabricItemLinkBridge.register();
+        FabricCoordinateBridge.register();
         ServerMessageDecoratorEvent.EVENT.register(
                 ServerMessageDecoratorEvent.STYLING_PHASE,
                 (sender, message) -> {

@@ -1,1 +1,3 @@
+# Legacy setting retained so existing backend configurations do not need to be rewritten.
+# Current tkChat routes and renders all player chat through Velocity.
 local-format: '<dark_gray>[</dark_gray><gray>Local</gray><dark_gray>]</dark_gray> <name><dark_gray>: </dark_gray><message>'

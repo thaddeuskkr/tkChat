@@ -166,6 +166,7 @@ lowercase, so the documented form is `tkchat` even though the plugin name is sty
 | `tkchat.bypass.links` | Include clickable URLs |
 | `tkchat.bypass.private_groups` | Join private groups without an invite or password |
 | `tkchat.bypass.group_join_notifications` | Join groups without notifying their members |
+| `tkchat.bypass.global_player_notifications` | Always see global player join/leave and server-switch notices |
 | `tkchat.bypass.channel_restrictions` | Ignore channel and group send/receive restrictions |
 | `tkchat.bypass.chat_clear` | Keep chat history when `/clearchat` is used |
 
@@ -277,8 +278,8 @@ Group join notices are sent to the group's currently online members. Grant
 `tkchat.bypass.private_groups` is also silent.
 
 Reloading applies channels, channel command aliases, the default channel, chat limits and rate
-limits, formats (including the response prefix), `messages.yml`, mentions, item links, clear-chat
-settings, SignedVelocity enforcement, and the LibertyBans fail-closed setting. Players whose
+limits, formats (including the response prefix), `messages.yml`, mentions, item links, coordinate
+placeholders, clear-chat settings, SignedVelocity enforcement, and the LibertyBans fail-closed setting. Players whose
 selected channel was removed are moved to the new default channel. Changes to `instance-id`,
 `mariadb`, or `rabbitmq` are validated but require a Velocity restart because they own long-lived
 storage or transport connections; the command reports those sections after an otherwise successful
@@ -312,21 +313,37 @@ offline without relying on LuckPerms' user cache; offline roster entries are mar
   sound. Mention styling and sound settings live under `mentions`.
 - Every approved channel, group, direct, action, and broadcast message is logged once on its
   originating Velocity console. RabbitMQ fan-out does not duplicate the log on receiving proxies.
+- The Paper adapter cancels the original backend `AsyncChatEvent` after SignedVelocity has consumed
+  the proxy decision. This prevents a second player-chat packet from producing client-side chat
+  validation errors; the approved, server-authored Velocity copy remains visible.
 - `<item>` and `[item]` link the sender's main-hand item. The Velocity plugin asks the Paper or
   Fabric bridge for its identifier, amount, and display name, then renders a hoverable
   item component. Placeholders, visible format, and timeout are configurable under `item-links`.
+- `<coords>` and `[coords]` insert the sender's block coordinates at send time in channel, group,
+  direct, action, and broadcast messages. The Paper or Fabric bridge supplies the position and
+  world; `coordinates.format` accepts `<x>`, `<y>`, `<z>`, `<world>`, and `<server>`. Enablement,
+  placeholders, visible format, and timeout are configurable under `coordinates`.
 - Social spy is a per-session toggle that shows eligible staff channel, group, and direct messages
   they would not normally receive.
 - Join and leave announcements are published after the initial backend connection succeeds.
-  `formats.join` and `formats.leave` reach only players on that backend; `formats.global-join` and
-  `formats.global-leave` are network-wide. All four accept MiniMessage plus `<name>` and `<server>`,
-  and an empty format disables that announcement. When local and global formats are both enabled,
-  the local format replaces the global one on the player's backend so nobody sees a duplicate. The
-  joining player does not receive their own join message. Local leave/join messages also fire for
-  the old/new backend during a server switch, while global messages only fire when entering or
-  leaving the proxy. The Paper and Fabric bridges suppress the corresponding vanilla messages.
-- Channel, group, action, direct-message, broadcast, clear, social-spy, join/leave, mention, and
-  item-link presentation remain customizable with MiniMessage formats in the Velocity config.
+  The explicit `notifications.local-join`, `notifications.local-leave`,
+  `notifications.global-join`, and `notifications.global-leave` booleans control which notices are
+  enabled. `formats.join` and `formats.leave` reach only players on that backend;
+  `formats.global-join` and `formats.global-leave` are network-wide. All four formats accept
+  MiniMessage plus `<name>` and `<server>`. When the corresponding local and global toggles are both
+  enabled, the local format replaces the global one on the player's backend so ordinary viewers do
+  not see a duplicate. Grant `tkchat.bypass.global_player_notifications` to viewers who should
+  always receive global notices, including when a global toggle is `false`. On the affected backend,
+  these viewers receive the global notice instead of the local notice. On a server switch, they
+  receive one network-wide `formats.server-switch` message instead of the separate local leave and
+  join messages. Its placeholders are `<user>` (or `<name>`), `<old_server>`, and `<new_server>`.
+  Ordinary viewers never receive this switch-summary message; when enabled, they only receive the
+  existing `formats.leave` notice on the old backend or `formats.join` notice on the new backend.
+  The joining or switching player does not receive their own join/switch notices. Ordinary global
+  messages only fire when entering or leaving the proxy. The Paper and Fabric bridges suppress the
+  corresponding vanilla messages.
+- Channel, group, action, direct-message, broadcast, clear, social-spy, join/leave, mention,
+  item-link, and coordinate presentation remain customizable with MiniMessage formats in the Velocity config.
   Backend configuration stays limited to backend-local concerns.
 
 ## Upgrade compatibility
@@ -334,9 +351,11 @@ offline without relying on LuckPerms' user cache; offline roster entries are mar
 Existing 0.3.x `config.yml` files do not need migration: omitted additive settings such as
 `formats.me` receive their in-code default, and tkChat does not rewrite the file. Existing
 `messages.yml` overrides remain authoritative while newly introduced response keys fall back to
-their bundled defaults. `/me` uses a marker inside the existing serialized message envelope rather
+their bundled defaults. `/me` and resolved coordinates use markers inside the existing serialized message envelope rather
 than adding a new network message type, so mixed 0.3.x proxies can deserialize it during a rolling
 upgrade; an older proxy degrades gracefully by showing it with the channel's ordinary format.
+Existing configs without the `notifications` section keep their former behavior: tkChat translates
+empty and non-empty join/leave formats into the new toggles in memory, without rewriting the file.
 
 Discord integration, runtime-created custom channels, multi-language messages, and proximity chat
 are intentionally outside the current scope.
