@@ -66,8 +66,8 @@ Build a particular Fabric artifact:
 ```
 
 Build every release artifact with `./gradlew releaseArtifacts`. Release jars are written under the
-plugin-version folder, such as `build/releases/0.7.2/`, and include the plugin version in each jar
-name, such as `tkChat-Velocity-0.7.2.jar`.
+plugin-version folder, such as `build/releases/<version>/`, and include the plugin version in each jar
+name, such as `tkChat-Velocity-<version>.jar`.
 The three Paper family jars share one implementation. The 1.21.x jar is compiled against Paper
 1.21, the 26.1.x jar against Paper 26.1.1, and the 26.2 jar against Paper 26.2. Compiling against
 the oldest published API in each family prevents accidental use of methods that are unavailable on
@@ -87,7 +87,7 @@ when invoking the complete matrix.
 
 Publishing is automated by `.github/workflows/publish-modrinth.yml`. When a push to `main` changes
 `projectVersion`, the workflow verifies the new version, builds and tests the complete matrix,
-creates the matching GitHub tag and release (for example, `v0.7.2`), attaches all 7 jars, and then
+creates the matching GitHub tag and release (for example, `v<version>`), attaches all 7 jars, and then
 publishes every Velocity, Paper, and Fabric artifact to Modrinth. No GitHub release needs to be
 created manually.
 
@@ -156,7 +156,7 @@ Permission names are fixed in code rather than configurable. LuckPerms normalize
 lowercase, so the documented form is `tkchat` even though the plugin name is styled `tkChat`.
 
 | Pattern | Purpose |
-|---|---|
+| --- | --- |
 | `tkchat.command.<command>` | Use a tkChat command |
 | `tkchat.command.channel.others` | Change another online player's active channel |
 | `tkchat.channel.<channel>.send` | Send to a configured channel |
@@ -227,7 +227,7 @@ moderation denials, group notifications, and group action-button labels and hove
 values such as player, group, and channel names are inserted as literal text, so they cannot inject
 formatting into an administrator-defined response. The prefix prepended to every response remains
 alongside the other presentation settings at `formats.response-prefix` in `config.yml`; its default
-is a colored `tkChat » `, and setting it to an empty string disables it. When an upgrade adds a new
+is a colored `tkChat »`, and setting it to an empty string disables it. When an upgrade adds a new
 response, an existing `messages.yml` uses the bundled default for that missing key while retaining
 all of its configured overrides.
 
