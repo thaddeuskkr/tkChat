@@ -110,6 +110,7 @@ class VelocityDeliveryServiceTest {
         formats.join = "<green><name> joined <server>: <message></green>";
         formats.globalJoin = "<aqua>Global: <name> joined <server></aqua>";
         AppConfig.Notifications notifications = new AppConfig.Notifications();
+        notifications.globalJoin = true;
         VelocityDeliveryService delivery = new VelocityDeliveryService(
                 proxy, channels, null, formats, notifications, new AppConfig.Mentions(),
                 new AppConfig.ItemLinks(), new AppConfig.Coordinates(),

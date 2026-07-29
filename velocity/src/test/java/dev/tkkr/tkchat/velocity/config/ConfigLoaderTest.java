@@ -23,10 +23,18 @@ class ConfigLoaderTest {
 
         assertTrue(yaml.contains("mariadb:"));
         assertTrue(yaml.contains("rabbitmq:"));
+        assertEquals("local", config.defaultChannel);
+        assertTrue(config.mariadb.enabled);
+        assertFalse(config.rabbitmq.enabled);
         assertEquals("tkchat.channel.global.send",
                 config.channelDefinitions().getFirst().sendPermission());
         assertEquals("global", config.channelDefinitions().getFirst().id());
         assertTrue(config.channelDefinitions().getFirst().aliases().contains("g"));
+        assertEquals("<green><bold>G</bold></green> <prefix><name><suffix> "
+                        + "<color:#767676><bold>»</bold></color> <message>",
+                config.channelDefinitions().getFirst().format());
+        assertEquals("<prefix><name><suffix> <color:#767676><bold>»</bold></color> <message>",
+                config.channelDefinitions().get(1).format());
         assertEquals("jdbc:mariadb://127.0.0.1:3306/tkchat", config.mariadb.jdbcUrl);
         assertEquals(8, config.mariadb.maximumPoolSize);
         assertEquals(2, config.mariadb.minimumIdle);
@@ -39,23 +47,29 @@ class ConfigLoaderTest {
         assertEquals(30_000, config.chat.maxDeliveryAgeMillis);
         assertTrue(yaml.contains("socket-timeout-millis: 15000"));
         assertTrue(yaml.contains("max-queued-operations: 1024"));
-        assertTrue(yaml.contains("response-prefix:"));
-        assertTrue(yaml.contains("me: '<gray>* </gray><prefix><name><suffix> <message>'"));
+        assertEquals("<color:#9333ea><bold>tkChat <color:#767676>»</bold><gray> ",
+                config.formats.responsePrefix);
+        assertEquals("<color:#767676>* </color><prefix><name><suffix> <message>",
+                config.formats.me);
+        assertEquals("<color:#e5c890><bold><mention></bold></color>",
+                config.mentions.highlightFormat);
+        assertEquals("<color:#8caaee>[<amount>x <item_name>]</color>",
+                config.itemLinks.format);
         assertTrue(yaml.contains("notifications:"));
         assertTrue(yaml.contains("local-join: true"));
-        assertTrue(yaml.contains("global-join: true"));
-        assertTrue(yaml.contains("global-join: '<yellow><name> joined the network.</yellow>'"));
-        assertTrue(yaml.contains("join: '<yellow><name> joined the server.</yellow>'"));
+        assertTrue(yaml.contains("global-join: false"));
+        assertTrue(yaml.contains("global-join: '<yellow><name> joined <server></yellow>'"));
+        assertTrue(yaml.contains("join: '<yellow><name> joined the game</yellow>'"));
         assertTrue(yaml.contains("server-switch: '<yellow><user> left <old_server> and joined <new_server>.</yellow>'"));
         assertTrue(yaml.contains("coordinates:"));
         assertTrue(yaml.contains("placeholders: ['<coords>', '[coords]']"));
-        assertEquals("<aqua>[<x>, <y>, <z>]</aqua>", config.coordinates.format);
+        assertEquals("<color:#8caaee>[<x>, <y>, <z>]</color>", config.coordinates.format);
         assertTrue(config.notifications.localJoin);
         assertTrue(config.notifications.localLeave);
-        assertTrue(config.notifications.globalJoin);
-        assertTrue(config.notifications.globalLeave);
-        assertEquals("<yellow><name> left the network.</yellow>", config.formats.globalLeave);
-        assertEquals("<yellow><name> left the server.</yellow>", config.formats.leave);
+        assertFalse(config.notifications.globalJoin);
+        assertFalse(config.notifications.globalLeave);
+        assertEquals("<yellow><name> left <server></yellow>", config.formats.globalLeave);
+        assertEquals("<yellow><name> left the game</yellow>", config.formats.leave);
         assertEquals("<yellow><user> left <old_server> and joined <new_server>.</yellow>",
                 config.formats.serverSwitch);
         assertTrue(messages.contains("no-permission:"));
@@ -68,6 +82,34 @@ class ConfigLoaderTest {
     }
 
     @Test
+    void bundledDefaultsMatchInCodeFallbacks() throws Exception {
+        AppConfig bundled = new ConfigLoader().load(directory);
+        AppConfig fallback = new AppConfig();
+
+        assertEquals(fallback.defaultChannel, bundled.defaultChannel);
+        assertEquals(fallback.notifications.globalJoin, bundled.notifications.globalJoin);
+        assertEquals(fallback.notifications.globalLeave, bundled.notifications.globalLeave);
+        assertEquals(fallback.mentions.highlightFormat, bundled.mentions.highlightFormat);
+        assertEquals(fallback.itemLinks.format, bundled.itemLinks.format);
+        assertEquals(fallback.coordinates.format, bundled.coordinates.format);
+        assertEquals(fallback.mariadb.enabled, bundled.mariadb.enabled);
+        assertEquals(fallback.rabbitmq.enabled, bundled.rabbitmq.enabled);
+        assertEquals(fallback.formats.responsePrefix, bundled.formats.responsePrefix);
+        assertEquals(fallback.formats.me, bundled.formats.me);
+        assertEquals(fallback.formats.directIncoming, bundled.formats.directIncoming);
+        assertEquals(fallback.formats.directOutgoing, bundled.formats.directOutgoing);
+        assertEquals(fallback.formats.group, bundled.formats.group);
+        assertEquals(fallback.formats.broadcast, bundled.formats.broadcast);
+        assertEquals(fallback.formats.chatClear, bundled.formats.chatClear);
+        assertEquals(fallback.formats.socialSpy, bundled.formats.socialSpy);
+        assertEquals(fallback.formats.globalJoin, bundled.formats.globalJoin);
+        assertEquals(fallback.formats.globalLeave, bundled.formats.globalLeave);
+        assertEquals(fallback.formats.join, bundled.formats.join);
+        assertEquals(fallback.formats.leave, bundled.formats.leave);
+        assertEquals(fallback.formats.serverSwitch, bundled.formats.serverSwitch);
+    }
+
+    @Test
     void existingConfigsAndMessagesReceiveNewDefaultsWithoutBeingRewritten() throws Exception {
         new ConfigLoader().load(directory);
         Path configPath = directory.resolve("config.yml");
@@ -77,21 +119,21 @@ class ConfigLoaderTest {
                         + "  # network join/leave notices and server-switch notices from every server.\n"
                         + "  local-join: true\n"
                         + "  local-leave: true\n"
-                        + "  global-join: true\n"
-                        + "  global-leave: true\n\n", "")
+                        + "  global-join: false\n"
+                        + "  global-leave: false\n\n", "")
                 .replace("coordinates:\n"
                         + "  enabled: true\n"
                         + "  placeholders: ['<coords>', '[coords]']\n"
                         + "  # Available format placeholders: <x>, <y>, <z>, <world>, and <server>.\n"
-                        + "  format: '<aqua>[<x>, <y>, <z>]</aqua>'\n"
+                        + "  format: '<color:#8caaee>[<x>, <y>, <z>]</color>'\n"
                         + "  response-timeout-millis: 1500\n\n", "")
-                .replace("  me: '<gray>* </gray><prefix><name><suffix> <message>'\n", "")
-                .replace("  global-join: '<yellow><name> joined the network.</yellow>'\n",
+                .replace("  me: '<color:#767676>* </color><prefix><name><suffix> <message>'\n", "")
+                .replace("  global-join: '<yellow><name> joined <server></yellow>'\n",
                         "  global-join: ''\n")
-                .replace("  global-leave: '<yellow><name> left the network.</yellow>'\n",
+                .replace("  global-leave: '<yellow><name> left <server></yellow>'\n",
                         "  global-leave: ''\n")
-                .replace("  join: '<yellow><name> joined the server.</yellow>'\n", "")
-                .replace("  leave: '<yellow><name> left the server.</yellow>'\n", "")
+                .replace("  join: '<yellow><name> joined the game</yellow>'\n", "")
+                .replace("  leave: '<yellow><name> left the game</yellow>'\n", "")
                 .replace("  # Sent once per server switch, only to viewers with\n"
                         + "  # tkchat.bypass.global_player_notifications. Placeholders: <user> (or <name>),\n"
                         + "  # <old_server>, and <new_server>.\n"
@@ -122,14 +164,14 @@ class ConfigLoaderTest {
 
         AppConfig upgraded = new ConfigLoader().load(directory);
 
-        assertEquals("<gray>* </gray><prefix><name><suffix> <message>",
+        assertEquals("<color:#767676>* </color><prefix><name><suffix> <message>",
                 upgraded.formats.me);
-        assertEquals("<yellow><name> joined the network.</yellow>",
+        assertEquals("<yellow><name> joined <server></yellow>",
                 upgraded.formats.globalJoin);
-        assertEquals("<yellow><name> left the network.</yellow>",
+        assertEquals("<yellow><name> left <server></yellow>",
                 upgraded.formats.globalLeave);
-        assertEquals("<yellow><name> joined the server.</yellow>", upgraded.formats.join);
-        assertEquals("<yellow><name> left the server.</yellow>", upgraded.formats.leave);
+        assertEquals("<yellow><name> joined the game</yellow>", upgraded.formats.join);
+        assertEquals("<yellow><name> left the game</yellow>", upgraded.formats.leave);
         assertEquals("<yellow><user> left <old_server> and joined <new_server>.</yellow>",
                 upgraded.formats.serverSwitch);
         assertTrue(upgraded.notifications.localJoin);
@@ -139,7 +181,8 @@ class ConfigLoaderTest {
         assertTrue(upgraded.coordinates.enabled);
         assertEquals(java.util.List.of("<coords>", "[coords]"),
                 upgraded.coordinates.placeholders);
-        assertEquals("<aqua>[<x>, <y>, <z>]</aqua>", upgraded.coordinates.format);
+        assertEquals("<color:#8caaee>[<x>, <y>, <z>]</color>",
+                upgraded.coordinates.format);
         assertEquals("<red>Usage: /me <action> (maximum <max_length> characters)</red>",
                 upgraded.messages.template(ResponseKey.ME_USAGE));
         assertEquals("<red>Your coordinates could not be shared. Please try again.</red>",

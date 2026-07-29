@@ -13,7 +13,7 @@ import java.util.List;
 
 public final class AppConfig {
     public String instanceId = "velocity-1";
-    public String defaultChannel = "global";
+    public String defaultChannel = "local";
     public boolean requireSignedVelocity = true;
     public Chat chat = new Chat();
     public Notifications notifications = new Notifications();
@@ -170,14 +170,14 @@ public final class AppConfig {
     public static final class Notifications {
         public boolean localJoin = true;
         public boolean localLeave = true;
-        public boolean globalJoin = true;
-        public boolean globalLeave = true;
+        public boolean globalJoin = false;
+        public boolean globalLeave = false;
     }
 
     public static final class Mentions {
         public boolean enabled = true;
         public String prefix = "@";
-        public String highlightFormat = "<yellow><bold><mention></bold></yellow>";
+        public String highlightFormat = "<color:#e5c890><bold><mention></bold></color>";
         public boolean playSound = true;
         public String sound = "minecraft:entity.experience_orb.pickup";
         public float soundVolume = 1.0f;
@@ -187,14 +187,14 @@ public final class AppConfig {
     public static final class ItemLinks {
         public boolean enabled = true;
         public List<String> placeholders = new ArrayList<>(List.of("<item>", "[item]"));
-        public String format = "<aqua>[<amount>x <item_name>]</aqua>";
+        public String format = "<color:#8caaee>[<amount>x <item_name>]</color>";
         public long responseTimeoutMillis = 1_500;
     }
 
     public static final class Coordinates {
         public boolean enabled = true;
         public List<String> placeholders = new ArrayList<>(List.of("<coords>", "[coords]"));
-        public String format = "<aqua>[<x>, <y>, <z>]</aqua>";
+        public String format = "<color:#8caaee>[<x>, <y>, <z>]</color>";
         public long responseTimeoutMillis = 1_500;
     }
 
@@ -218,7 +218,7 @@ public final class AppConfig {
     }
 
     public static final class RabbitMq {
-        public boolean enabled = true;
+        public boolean enabled = false;
         public boolean fallbackToLocal = true;
         public String uri = "amqp://guest:guest@127.0.0.1:5672/%2f";
         public String exchange = "tkchat.events";
@@ -231,19 +231,28 @@ public final class AppConfig {
     }
 
     public static final class Formats {
-        public String responsePrefix = "<gradient:#55FFFF:#55FF55><bold>tkChat</bold></gradient> "
-                + "<dark_gray>»</dark_gray> ";
-        public String me = "<gray>* </gray><prefix><name><suffix> <message>";
-        public String directIncoming = "<dark_gray>[</dark_gray><light_purple>DM from <name></light_purple><dark_gray>]</dark_gray> <message>";
-        public String directOutgoing = "<dark_gray>[</dark_gray><light_purple>DM to <target></light_purple><dark_gray>]</dark_gray> <message>";
-        public String group = "<dark_gray>[</dark_gray><aqua><target></aqua><dark_gray>]</dark_gray> <prefix><name><suffix><dark_gray>: </dark_gray><message>";
-        public String broadcast = "<dark_gray>[</dark_gray><gold>Broadcast</gold><dark_gray>]</dark_gray> <message>";
-        public String chatClear = "<gray><target> chat was cleared by <white><name></white>.</gray>";
-        public String socialSpy = "<dark_gray>[Spy: <target>]</dark_gray> <name><dark_gray>: </dark_gray><message>";
-        public String globalJoin = "<yellow><name> joined the network.</yellow>";
-        public String globalLeave = "<yellow><name> left the network.</yellow>";
-        public String join = "<yellow><name> joined the server.</yellow>";
-        public String leave = "<yellow><name> left the server.</yellow>";
+        public String responsePrefix = "<color:#9333ea><bold>tkChat "
+                + "<color:#767676>»</bold><gray> ";
+        public String me = "<color:#767676>* </color><prefix><name><suffix> <message>";
+        public String directIncoming = "<color:#6197fa>[<color:#cccccc>You</color> "
+                + "<bold>←</bold></color> <color:#cccccc><name></color>"
+                + "<color:#6197fa>]</color> <color:#767676><bold>»</bold></color> <message>";
+        public String directOutgoing = "<color:#6197fa>[<color:#cccccc>You</color> "
+                + "<bold>→</bold></color> <color:#cccccc><target></color>"
+                + "<color:#6197fa>]</color> <color:#767676><bold>»</bold></color> <message>";
+        public String group = "<color:#767676>[</color><color:#eebebe><target></color>"
+                + "<color:#767676>]</color> <prefix><name><suffix> "
+                + "<color:#767676><bold>»</bold></color> <message>";
+        public String broadcast = "<color:#767676>[</color><color:#ef9f76>"
+                + "<bold>Broadcast</bold></color><color:#767676>]</color> <message>";
+        public String chatClear = "<gray><target> chat was cleared by "
+                + "<prefix><name><suffix>.</gray>";
+        public String socialSpy = "<color:#767676><bold>SS</bold> [<target>]</color> "
+                + "<prefix><name><suffix><color:#767676><bold>»</bold></color> <message>";
+        public String globalJoin = "<yellow><name> joined <server></yellow>";
+        public String globalLeave = "<yellow><name> left <server></yellow>";
+        public String join = "<yellow><name> joined the game</yellow>";
+        public String leave = "<yellow><name> left the game</yellow>";
         public String serverSwitch = "<yellow><user> left <old_server> and joined <new_server>.</yellow>";
     }
 

@@ -59,7 +59,7 @@ class ResponseServiceTest {
                 "<gold>Choose another command.</gold>"));
         Path configPath = directory.resolve("config.yml");
         Files.writeString(configPath, Files.readString(configPath).replace(
-                "<gradient:#55FFFF:#55FF55><bold>tkChat</bold></gradient> <dark_gray>»</dark_gray> ",
+                "<color:#9333ea><bold>tkChat <color:#767676>»</bold><gray> ",
                 "<blue>Network » </blue>"));
 
         AppConfig customized = new ConfigLoader().load(directory);

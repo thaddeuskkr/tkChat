@@ -1,5 +1,5 @@
 instance-id: velocity-1
-default-channel: global
+default-channel: local
 
 require-signed-velocity: true
 
@@ -19,13 +19,13 @@ notifications:
   # network join/leave notices and server-switch notices from every server.
   local-join: true
   local-leave: true
-  global-join: true
-  global-leave: true
+  global-join: false
+  global-leave: false
 
 mentions:
   enabled: true
   prefix: '@'
-  highlight-format: '<yellow><bold><mention></bold></yellow>'
+  highlight-format: '<color:#e5c890><bold><mention></bold></color>'
   play-sound: true
   sound: minecraft:entity.experience_orb.pickup
   sound-volume: 1.0
@@ -34,14 +34,14 @@ mentions:
 item-links:
   enabled: true
   placeholders: ['<item>', '[item]']
-  format: '<aqua>[<amount>x <item_name>]</aqua>'
+  format: '<color:#8caaee>[<amount>x <item_name>]</color>'
   response-timeout-millis: 1500
 
 coordinates:
   enabled: true
   placeholders: ['<coords>', '[coords]']
   # Available format placeholders: <x>, <y>, <z>, <world>, and <server>.
-  format: '<aqua>[<x>, <y>, <z>]</aqua>'
+  format: '<color:#8caaee>[<x>, <y>, <z>]</color>'
   response-timeout-millis: 1500
 
 mariadb:
@@ -79,37 +79,37 @@ liberty-bans:
 
 formats:
   # Prepended to every command response. Set to '' to disable it.
-  response-prefix: '<gradient:#55FFFF:#55FF55><bold>tkChat</bold></gradient> <dark_gray>»</dark_gray> '
+  response-prefix: '<color:#9333ea><bold>tkChat <color:#767676>»</bold><gray> '
   # /me follows the sender's active channel. Available placeholders are
   # <prefix>, <name>, <suffix>, <target> (or <channel>), and <message>.
-  me: '<gray>* </gray><prefix><name><suffix> <message>'
-  direct-incoming: '<dark_gray>[</dark_gray><light_purple>DM from <name></light_purple><dark_gray>]</dark_gray> <message>'
-  direct-outgoing: '<dark_gray>[</dark_gray><light_purple>DM to <target></light_purple><dark_gray>]</dark_gray> <message>'
-  group: '<dark_gray>[</dark_gray><aqua><target></aqua><dark_gray>]</dark_gray> <prefix><name><suffix><dark_gray>: </dark_gray><message>'
-  broadcast: '<dark_gray>[</dark_gray><gold>Broadcast</gold><dark_gray>]</dark_gray> <message>'
-  chat-clear: '<gray><target> chat was cleared by <white><name></white>.</gray>'
-  social-spy: '<dark_gray>[Spy: <target>]</dark_gray> <name><dark_gray>: </dark_gray><message>'
+  me: '<color:#767676>* </color><prefix><name><suffix> <message>'
+  direct-incoming: '<color:#6197fa>[<color:#cccccc>You</color> <bold>←</bold></color> <color:#cccccc><name></color><color:#6197fa>]</color> <color:#767676><bold>»</bold></color> <message>'
+  direct-outgoing: '<color:#6197fa>[<color:#cccccc>You</color> <bold>→</bold></color> <color:#cccccc><target></color><color:#6197fa>]</color> <color:#767676><bold>»</bold></color> <message>'
+  group: '<color:#767676>[</color><color:#eebebe><target></color><color:#767676>]</color> <prefix><name><suffix> <color:#767676><bold>»</bold></color> <message>'
+  broadcast: '<color:#767676>[</color><color:#ef9f76><bold>Broadcast</bold></color><color:#767676>]</color> <message>'
+  chat-clear: '<gray><target> chat was cleared by <prefix><name><suffix>.</gray>'
+  social-spy: '<color:#767676><bold>SS</bold> [<target>]</color> <prefix><name><suffix><color:#767676><bold>»</bold></color> <message>'
   # Join/leave announcements. Available placeholders are <name> and <server>.
   # Global messages reach the rest of the network; local messages replace them on the
   # player's current server and also fire on server switches. Join messages are not sent
   # to the joining player. Use the notifications toggles above to enable or disable them.
-  global-join: '<yellow><name> joined the network.</yellow>'
-  global-leave: '<yellow><name> left the network.</yellow>'
-  join: '<yellow><name> joined the server.</yellow>'
-  leave: '<yellow><name> left the server.</yellow>'
+  global-join: '<yellow><name> joined <server></yellow>'
+  global-leave: '<yellow><name> left <server></yellow>'
+  join: '<yellow><name> joined the game</yellow>'
+  leave: '<yellow><name> left the game</yellow>'
   # Sent once per server switch, only to viewers with
   # tkchat.bypass.global_player_notifications. Placeholders: <user> (or <name>),
   # <old_server>, and <new_server>.
   server-switch: '<yellow><user> left <old_server> and joined <new_server>.</yellow>'
 
 channels:
-  - id: global
-    aliases: [g]
-    display-name: Global
-    scope: GLOBAL
-    format: '<dark_gray>[</dark_gray><green>Global</green><dark_gray>]</dark_gray> <prefix><name><suffix><dark_gray>: </dark_gray><message>'
-  - id: local
-    aliases: [l]
-    display-name: Local
-    scope: SERVER
-    format: '<dark_gray>[</dark_gray><gray>Local</gray><dark_gray>]</dark_gray> <prefix><name><suffix><dark_gray>: </dark_gray><message>'
+- id: global
+  aliases: [g]
+  display-name: Global
+  scope: GLOBAL
+  format: '<green><bold>G</bold></green> <prefix><name><suffix> <color:#767676><bold>»</bold></color> <message>'
+- id: local
+  aliases: [l]
+  display-name: Local
+  scope: SERVER
+  format: '<prefix><name><suffix> <color:#767676><bold>»</bold></color> <message>'
